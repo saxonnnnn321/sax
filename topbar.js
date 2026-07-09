@@ -14,6 +14,84 @@
   const TOPBAR_SUPABASE_URL = 'https://qolajqziujbfsiguaozo.supabase.co';
   const TOPBAR_SUPABASE_KEY = 'sb_publishable_MJLciRMTTp9K7Qyb_HojdQ_5pqgnX7l';
 
+  // -------- Auth (login gate) --------
+  // Only a logged-in Supabase user may view the dashboard or sync data.
+  // Sign-ups are disabled in Supabase, so "logged in" == you. This overlay
+  // is UX only; the real protection is the row-level-security rules that
+  // block anyone who isn't authenticated from reading/writing the data.
+  let _authSupa = null;
+  function authClient() {
+    if (_authSupa) return _authSupa;
+    if (!window.supabase) return null;
+    if (!TOPBAR_SUPABASE_URL || TOPBAR_SUPABASE_URL.indexOf('PASTE-') === 0) return null;
+    try { _authSupa = window.supabase.createClient(TOPBAR_SUPABASE_URL, TOPBAR_SUPABASE_KEY); }
+    catch (e) { _authSupa = null; }
+    return _authSupa;
+  }
+  async function hasSession() {
+    const supa = authClient();
+    if (!supa) return true; // fail open: never lock the owner out on a library/config glitch
+    try { const { data } = await supa.auth.getSession(); return !!(data && data.session); }
+    catch (e) { return true; }
+  }
+  function showLoginOverlay() {
+    if (document.getElementById('pw-login-overlay')) return;
+    const supa = authClient();
+    const style = document.createElement('style');
+    style.textContent = `
+#pw-login-overlay { position: fixed; inset: 0; z-index: 2147483647; display: flex; align-items: center; justify-content: center;
+  background: #050506; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif; }
+#pw-login-card { width: 100%; max-width: 340px; }
+#pw-login-card h1 { color: #FAFAFA; font-size: 20px; font-weight: 700; margin: 0 0 4px; letter-spacing: -0.01em; }
+#pw-login-card p { color: rgba(255,255,255,0.5); font-size: 13px; margin: 0 0 20px; }
+#pw-login-card input { width: 100%; box-sizing: border-box; margin-bottom: 10px; padding: 13px 14px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px;
+  color: #FAFAFA; font-size: 16px; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+#pw-login-card input:focus { outline: none; border-color: rgba(125,211,252,0.5); }
+#pw-login-btn { width: 100%; padding: 13px; margin-top: 4px; border: 0; border-radius: 12px; cursor: pointer;
+  background: linear-gradient(180deg, #7DD3FC, #6EE7B7); color: #05201a; font-size: 15px; font-weight: 700; font-family: inherit; }
+#pw-login-btn:disabled { opacity: 0.6; }
+#pw-login-err { color: #ff8a8a; font-size: 12px; min-height: 16px; margin-top: 10px; }`;
+    document.head.appendChild(style);
+    const wrap = document.createElement('div');
+    wrap.id = 'pw-login-overlay';
+    wrap.innerHTML = `
+<form id="pw-login-card" autocomplete="on">
+  <h1>Saxons Dashboard</h1>
+  <p>Please log in to continue.</p>
+  <input id="pw-login-email" type="email" inputmode="email" autocomplete="username" placeholder="Email" required>
+  <input id="pw-login-pass" type="password" autocomplete="current-password" placeholder="Password" required>
+  <button id="pw-login-btn" type="submit">Log in</button>
+  <div id="pw-login-err"></div>
+</form>`;
+    document.body.appendChild(wrap);
+    document.body.style.overflow = 'hidden';
+    const form = document.getElementById('pw-login-card');
+    const err = document.getElementById('pw-login-err');
+    const btn = document.getElementById('pw-login-btn');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!supa) { err.textContent = 'Auth unavailable — check your connection.'; return; }
+      err.textContent = '';
+      btn.disabled = true; btn.textContent = 'Logging in…';
+      const email = document.getElementById('pw-login-email').value.trim();
+      const password = document.getElementById('pw-login-pass').value;
+      try {
+        const { error } = await supa.auth.signInWithPassword({ email, password });
+        if (error) { err.textContent = error.message || 'Login failed.'; btn.disabled = false; btn.textContent = 'Log in'; return; }
+        location.reload();
+      } catch (e2) {
+        err.textContent = 'Login failed — try again.'; btn.disabled = false; btn.textContent = 'Log in';
+      }
+    });
+  }
+  async function authGate() {
+    try { if (window.self !== window.top) return true; } catch (e) { return true; } // embedded: parent gates
+    const ok = await hasSession();
+    if (!ok) showLoginOverlay();
+    return ok;
+  }
+
   // -------- CSS --------
   const css = `
 .topbar {
@@ -274,10 +352,15 @@ body.topbar-modal-open { overflow: hidden; touch-action: none; }
   async function pushWaterMergedToSupabase(localWater) {
     if (window.location.pathname.endsWith('/health.html') ||
         window.location.pathname.endsWith('health.html')) return;
-    if (!window.supabase || !TOPBAR_SUPABASE_URL || !TOPBAR_SUPABASE_KEY) return;
-    if (TOPBAR_SUPABASE_URL.indexOf('PASTE-') === 0) return;
+    const supa = authClient();
+    if (!supa) return;
     try {
-      const supa = window.supabase.createClient(TOPBAR_SUPABASE_URL, TOPBAR_SUPABASE_KEY);
+      // Only push when logged in — otherwise the authenticated row-level
+      // security rules reject the write anyway.
+      const { data: sess } = await supa.auth.getSession();
+      if (!sess || !sess.session) return;
+    } catch (e) { return; }
+    try {
       const { data } = await supa
         .from('app_state').select('data').eq('key', 'health').maybeSingle();
       const current = (data && data.data) || {};
@@ -332,6 +415,7 @@ body.topbar-modal-open { overflow: hidden; touch-action: none; }
   }
 
   function boot() {
+    authGate();
     injectStyleAndHTML();
     const btn = document.getElementById('topbarWaterAdd');
     if (btn) btn.addEventListener('click', (e) => { e.preventDefault(); addWater(); });

@@ -18,6 +18,15 @@
     if (SUPABASE_URL.indexOf('PASTE-') === 0 || SUPABASE_KEY.indexOf('PASTE-') === 0) return;
 
     let supa = null, pushTimer = null, suppressSync = false, lastSyncedJson = null;
+    // The logged-in user's access token. Null until login; when null we skip
+    // pushing, because the authenticated row-level-security rules reject
+    // anonymous writes anyway.
+    let authToken = null;
+    async function refreshAuthToken() {
+      if (!supa) return;
+      try { const { data } = await supa.auth.getSession(); authToken = data && data.session ? data.session.access_token : null; }
+      catch (e) { authToken = null; }
+    }
 
     function matches(k) {
       if (!k) return false;
@@ -73,7 +82,7 @@
       return changed;
     }
     async function pushNow() {
-      if (!supa) return;
+      if (!supa || !authToken) return;
       const state = collect();
       const json = JSON.stringify(state);
       if (json === lastSyncedJson) return;
@@ -87,6 +96,7 @@
     }
     function schedulePush() { clearTimeout(pushTimer); pushTimer = setTimeout(pushNow, 250); }
     function flushOnUnload() {
+      if (!authToken) return; // not logged in — nothing to flush
       const state = collect();
       const json = JSON.stringify(state);
       if (json === lastSyncedJson) return;
@@ -95,7 +105,7 @@
           method: 'POST',
           headers: {
             'apikey': SUPABASE_KEY,
-            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Authorization': 'Bearer ' + authToken,
             'Content-Type': 'application/json',
             'Prefer': 'resolution=merge-duplicates',
           },
@@ -107,6 +117,15 @@
     }
     (async function init() {
       supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      await refreshAuthToken();
+      // Keep the token current across login/logout, and push any local data
+      // the moment we become authenticated.
+      try {
+        supa.auth.onAuthStateChange((_event, session) => {
+          authToken = session ? session.access_token : null;
+          if (authToken && Object.keys(collect()).length > 0) schedulePush();
+        });
+      } catch (e) {}
       try {
         const { data, error } = await supa.from('app_state').select('data').eq('key', appKey).maybeSingle();
         if (!error && data && data.data && Object.keys(data.data).length > 0) {
