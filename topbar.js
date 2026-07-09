@@ -110,14 +110,14 @@
 }
 
 @media (max-width: 480px) {
-  .topbar { padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); gap: 4px; }
+  /* Too many pills to fit one row on a phone — let them wrap to two rows
+     (3 on top, 2 below) so labels + counts never overlap. */
+  .topbar { flex-wrap: wrap; padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); gap: 6px; }
+  .topbar-pill, .topbar-water-wrap { flex: 1 1 28%; }
   .topbar-pill, .topbar-water-pill { padding: 7px 9px; gap: 5px; }
   .topbar-pill-label { font-size: 9px; letter-spacing: 0.10em; }
   .topbar-pill-count { font-size: 11px; }
   .topbar-water-add { width: 32px; font-size: 16px; }
-}
-@media (max-width: 380px) {
-  .topbar-pill-label { display: none; }
 }
 
 /* === Global mobile lockdown ===
