@@ -68,11 +68,29 @@
 .topbar-water-add.flash {
   background: linear-gradient(180deg, rgba(125, 211, 252, 0.7), rgba(110, 231, 183, 0.7));
 }
+.topbar-home-btn {
+  margin-right: auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 42px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 12px; text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, transform 0.10s;
+}
+.topbar-home-btn:hover { background: rgba(255, 255, 255, 0.08); }
+.topbar-home-btn:active { transform: scale(0.94); }
+.topbar-home-icon {
+  font-size: 20px; line-height: 1;
+  filter: grayscale(100%) brightness(1.4); opacity: 0.85;
+}
 @media (max-width: 480px) {
   .topbar { padding-left: 10px; padding-right: 10px; gap: 6px; }
   .topbar-water-pill { padding: 8px 11px; gap: 6px; }
   .topbar-pill-count { font-size: 12px; }
   .topbar-water-add { width: 40px; font-size: 18px; }
+  .topbar-home-btn { width: 40px; height: 38px; }
+  .topbar-home-icon { font-size: 18px; }
 }
 html, body { -webkit-text-size-adjust: 100%; }
 @media (max-width: 768px) {
@@ -103,6 +121,9 @@ body.topbar-modal-open { overflow: hidden; touch-action: none; }
 
   const topbarHtml = `
 <header class="topbar" id="topbar" role="navigation" aria-label="Quick actions">
+  <a href="index.html" class="topbar-home-btn" id="topbarHome" aria-label="Home">
+    <span class="topbar-home-icon">🏠</span>
+  </a>
   <div class="topbar-water-wrap">
     <a href="health.html#water" class="topbar-water-pill" id="topbarWater" aria-label="Water progress">
       <span class="topbar-pill-dot"></span>
@@ -120,6 +141,10 @@ body.topbar-modal-open { overflow: hidden; touch-action: none; }
     try { return window.self !== window.top; } catch (e) { return true; }
   }
   function shouldShowChrome() { return !isFinancePage() && !isEmbedded(); }
+  function isHubPage() {
+    const p = (window.location.pathname || '').toLowerCase();
+    return p === '' || p === '/' || p.endsWith('/index.html') || p.endsWith('index.html');
+  }
   function injectStyleAndHTML() {
     if (document.getElementById('topbar')) return;
     if (!shouldShowChrome()) return;
@@ -130,6 +155,11 @@ body.topbar-modal-open { overflow: hidden; touch-action: none; }
     const topWrap = document.createElement('div');
     topWrap.innerHTML = topbarHtml.trim();
     document.body.insertBefore(topWrap.firstChild, document.body.firstChild);
+    // The hub is home already — no need for a home button there.
+    if (isHubPage()) {
+      const home = document.getElementById('topbarHome');
+      if (home) home.remove();
+    }
   }
 
   function calendarDateKey() {
