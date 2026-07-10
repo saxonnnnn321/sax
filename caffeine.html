@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Caffeine</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+
+<style>
+:root {
+  --text-primary: #FAFAFA;
+  --text-secondary: #B8B6B0;
+  --text-tertiary: #76746E;
+  --success: #6BE3A4;
+  --warning: #F2C063;
+  --danger:  #FF6B6B;
+  --caf: #C9A36B;
+  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: #050506;
+  color: var(--text-secondary);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  min-height: 100vh; position: relative; overflow-x: hidden;
+  padding: max(28px, env(safe-area-inset-top)) 20px 60px;
+}
+body::before {
+  content: ''; position: fixed; inset: 0;
+  background:
+    radial-gradient(circle at 82% 14%, rgba(224, 118, 88, 0.16), transparent 45%),
+    radial-gradient(circle at 18% 90%, rgba(180, 180, 200, 0.06), transparent 50%);
+  filter: blur(40px); pointer-events: none; z-index: -2;
+  animation: drift 36s ease-in-out infinite alternate;
+}
+body::after {
+  content: ''; position: fixed; inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1px);
+  background-size: 3px 3px; pointer-events: none; z-index: -1;
+}
+@keyframes drift { 0% { transform: translate3d(0,0,0); } 100% { transform: translate3d(-22px, 14px, 0); } }
+
+.page { max-width: 1100px; margin: 0 auto; }
+.dash-title {
+  margin: 0 0 14px; font-size: 28px; font-weight: 700; letter-spacing: -0.025em;
+  background: linear-gradient(180deg, #FFFFFF 0%, #C7C4BC 120%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+@media (max-width: 480px) { .dash-title { font-size: 22px; } }
+
+.section { margin-top: 8px; }
+.section-title {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--text-tertiary); display: flex; align-items: center; gap: 12px; margin-bottom: 12px;
+}
+.section-title::before { content: ''; width: 18px; height: 1px; background: var(--text-tertiary); opacity: 0.6; }
+.section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent); }
+
+.gm-card {
+  position: relative; background: rgba(255, 255, 255, 0.04);
+  border-radius: 16px; padding: 20px; margin-bottom: 14px;
+  backdrop-filter: blur(24px) saturate(1.2); -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45); overflow: hidden;
+}
+
+/* ---------- Your Day ---------- */
+.caf-day-top { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.caf-ring-wrap { position: relative; width: 132px; height: 132px; flex-shrink: 0; }
+.caf-ring { width: 100%; height: 100%; display: block; transform: rotate(-90deg); }
+.caf-ring-track { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 9; }
+.caf-ring-fill { fill: none; stroke-width: 9; stroke-linecap: round; transition: stroke-dashoffset 0.4s ease, stroke 0.4s ease; }
+.caf-ring-overlay {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px;
+}
+.caf-ring-score { font-size: 38px; font-weight: 700; letter-spacing: -0.04em; color: var(--text-primary); line-height: 1; font-variant-numeric: tabular-nums; }
+.caf-ring-state { font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--text-tertiary); }
+.caf-day-meta { display: flex; flex-direction: column; gap: 4px; }
+.caf-day-when { font-size: 13px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--caf); }
+.caf-day-hint { font-size: 11.5px; color: var(--text-tertiary); }
+
+.caf-toggle { display: inline-flex; gap: 4px; margin: 16px 0 10px; padding: 3px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; }
+.caf-toggle button {
+  border: 0; background: transparent; color: var(--text-tertiary);
+  font-family: inherit; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 6px 12px; border-radius: 7px; cursor: pointer; transition: background 0.15s, color 0.15s;
+}
+.caf-toggle button.active { background: rgba(201,163,107,0.16); color: #EAD3AE; }
+
+.caf-curve-wrap { position: relative; width: 100%; }
+.caf-curve { width: 100%; height: auto; display: block; touch-action: none; cursor: crosshair; }
+.caf-axis { display: flex; justify-content: space-between; margin-top: 4px; font-family: var(--font-mono); font-size: 9.5px; color: var(--text-tertiary); }
+
+.caf-band { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06); }
+.caf-band > div { flex: 1; min-width: 120px; display: flex; flex-direction: column; gap: 3px; }
+.caf-band span { font-size: 9.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-tertiary); }
+.caf-band b { font-size: 15px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+
+/* ---------- Smart Timing ---------- */
+.caf-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.caf-tile { background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 15px; }
+.caf-tile-label { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 8px; }
+.caf-tile-big { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: var(--text-primary); line-height: 1.1; }
+.caf-tile-sub { margin-top: 6px; font-size: 12px; color: var(--text-secondary); }
+.caf-tips { list-style: none; margin: 16px 0 0; padding: 0; }
+.caf-tips li { position: relative; padding: 8px 0 8px 24px; font-size: 13px; color: var(--text-secondary); border-top: 1px solid rgba(255,255,255,0.05); }
+.caf-tips li:first-child { border-top: 0; }
+.caf-tips li::before { content: '›'; position: absolute; left: 6px; top: 8px; color: var(--caf); font-weight: 700; }
+
+/* ---------- Today ---------- */
+.caf-bar-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+.caf-bar-num { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.caf-bar-num small { font-size: 15px; color: var(--text-tertiary); font-weight: 600; }
+.caf-bar-active { font-size: 12px; color: var(--caf); font-weight: 600; }
+.caf-bar-track { position: relative; height: 12px; border-radius: 999px; background: rgba(255,255,255,0.06); overflow: hidden; }
+.caf-bar-fill { height: 100%; border-radius: 999px; transition: width 0.4s ease, background 0.4s ease; }
+.caf-bar-target { position: absolute; top: -3px; bottom: -3px; width: 2px; background: rgba(255,255,255,0.5); }
+.caf-note { margin-top: 12px; font-size: 12.5px; color: var(--text-tertiary); line-height: 1.5; }
+
+/* ---------- Log a drink ---------- */
+.caf-search { width: 100%; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; background: rgba(0,0,0,0.28); color: var(--text-primary); font-family: inherit; font-size: 14px; outline: none; transition: border-color 0.2s; }
+.caf-search::placeholder { color: var(--text-tertiary); }
+.caf-search:focus { border-color: rgba(201,163,107,0.5); }
+.caf-drinks { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 12px; max-height: 320px; overflow-y: auto; }
+.caf-drink { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); border-radius: 11px; cursor: pointer; text-align: left; font-family: inherit; color: var(--text-primary); transition: background 0.15s, border-color 0.15s, transform 0.1s; }
+.caf-drink:hover { background: rgba(201,163,107,0.10); border-color: rgba(201,163,107,0.22); }
+.caf-drink:active { transform: scale(0.97); }
+.caf-drink-emoji { font-size: 20px; flex-shrink: 0; }
+.caf-drink-name { flex: 1; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.caf-drink-mg { font-family: var(--font-mono); font-size: 12px; color: var(--text-tertiary); white-space: nowrap; }
+.caf-empty { text-align: center; font-size: 12px; font-style: italic; color: var(--text-tertiary); padding: 14px 0; grid-column: 1 / -1; }
+.caf-custom { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06); }
+.caf-custom input { padding: 11px 13px; border: 1px solid rgba(255,255,255,0.08); border-radius: 11px; background: rgba(0,0,0,0.28); color: var(--text-primary); font-family: inherit; font-size: 14px; outline: none; }
+.caf-custom input[type="text"] { flex: 1; min-width: 120px; }
+.caf-custom input[type="number"] { width: 96px; }
+.caf-add { padding: 11px 18px; border: 0; border-radius: 11px; background: linear-gradient(180deg, #FFFFFF 0%, #E8E5DD 100%); color: #0A0A0B; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 2px 8px rgba(0,0,0,0.35); transition: transform 0.1s, filter 0.15s; }
+.caf-add:hover { filter: brightness(1.06); transform: translateY(-1px); }
+
+/* ---------- Logged today ---------- */
+.caf-log-list { list-style: none; margin: 0; padding: 0; }
+.caf-log-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 6px; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; }
+.caf-log-emoji { font-size: 22px; flex-shrink: 0; }
+.caf-log-main { flex: 1; min-width: 0; }
+.caf-log-name { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.caf-log-name b { font-family: var(--font-mono); color: var(--caf); font-weight: 700; margin-left: 6px; }
+.caf-log-times { margin-top: 4px; font-size: 10.5px; color: var(--text-tertiary); font-family: var(--font-mono); display: flex; gap: 12px; flex-wrap: wrap; }
+.caf-log-del { border: 0; background: transparent; color: var(--text-tertiary); font-size: 18px; cursor: pointer; padding: 0 4px; opacity: 0.5; transition: opacity 0.2s, color 0.2s; }
+.caf-log-del:hover { opacity: 1; color: var(--danger); }
+
+@media (max-width: 480px) {
+  body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; }
+  .gm-card { padding: 16px; }
+  .caf-ring-wrap { width: 116px; height: 116px; }
+  .caf-ring-score { font-size: 32px; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1 class="dash-title">Caffeine</h1>
+
+  <!-- 1) YOUR DAY -->
+  <div class="section">
+    <div class="section-title">Your Day</div>
+    <div class="gm-card">
+      <div class="caf-day-top">
+        <div class="caf-ring-wrap">
+          <svg class="caf-ring" viewBox="0 0 120 120">
+            <circle class="caf-ring-track" cx="60" cy="60" r="52"></circle>
+            <circle class="caf-ring-fill" id="cafRingFill" cx="60" cy="60" r="52"></circle>
+          </svg>
+          <div class="caf-ring-overlay">
+            <div class="caf-ring-score" id="cafRingScore">—</div>
+            <div class="caf-ring-state" id="cafRingState">—</div>
+          </div>
+        </div>
+        <div class="caf-day-meta">
+          <div class="caf-day-when" id="cafRingWhen">Right now</div>
+          <div class="caf-day-hint">Hover / drag the curve to scrub</div>
+        </div>
+      </div>
+
+      <div class="caf-toggle" id="cafToggle">
+        <button data-mode="line" class="active">Line</button>
+        <button data-mode="bars">Bars</button>
+        <button data-mode="stack">Stack</button>
+      </div>
+
+      <div class="caf-curve-wrap">
+        <svg class="caf-curve" id="cafCurve" viewBox="0 0 720 240"></svg>
+        <div class="caf-axis"><span>12A</span><span>6A</span><span>12P</span><span>6P</span><span>12A</span></div>
+      </div>
+
+      <div class="caf-band">
+        <div><span>Peak focus</span><b id="cafPeakWin">—</b></div>
+        <div><span>Predicted crash</span><b id="cafCrash">—</b></div>
+        <div><span>Last coffee by</span><b id="cafCutoff">—</b></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2) SMART TIMING -->
+  <div class="section">
+    <div class="section-title">Smart Timing</div>
+    <div class="gm-card">
+      <div class="caf-tiles">
+        <div class="caf-tile">
+          <div class="caf-tile-label">Most productive</div>
+          <div class="caf-tile-big" id="cafProdTime">—</div>
+          <div class="caf-tile-sub" id="cafProdSub">—</div>
+        </div>
+        <div class="caf-tile">
+          <div class="caf-tile-label">You'll crash</div>
+          <div class="caf-tile-big" id="cafCrashTime">—</div>
+          <div class="caf-tile-sub" id="cafCrashSub">—</div>
+        </div>
+        <div class="caf-tile">
+          <div class="caf-tile-label">Coffee cutoff</div>
+          <div class="caf-tile-big" id="cafCutoffTime">—</div>
+          <div class="caf-tile-sub" id="cafCutoffSub">Stay under 30 mg by bed</div>
+        </div>
+      </div>
+      <ul class="caf-tips" id="cafTips"></ul>
+    </div>
+  </div>
+
+  <!-- 3) TODAY -->
+  <div class="section">
+    <div class="section-title">Today</div>
+    <div class="gm-card">
+      <div class="caf-bar-head">
+        <div class="caf-bar-num"><span id="cafTotalMg">0</span> <small>/ <span id="cafLimitMg">400</span> mg</small></div>
+        <div class="caf-bar-active"><span id="cafActiveMg">0</span> mg active now</div>
+      </div>
+      <div class="caf-bar-track">
+        <div class="caf-bar-fill" id="cafBarFill" style="width:0%"></div>
+        <div class="caf-bar-target" id="cafBarTarget" style="left:0%"></div>
+      </div>
+      <div class="caf-note" id="cafNote">—</div>
+    </div>
+  </div>
+
+  <!-- 4) LOG A DRINK -->
+  <div class="section">
+    <div class="section-title">Log a Drink</div>
+    <div class="gm-card">
+      <input class="caf-search" id="cafSearch" type="text" placeholder="Search drinks… (coffee, monster, matcha…)" autocomplete="off">
+      <div class="caf-drinks" id="cafDrinks"></div>
+      <div class="caf-custom">
+        <input id="cafCustomName" type="text" placeholder="Custom drink name" autocomplete="off">
+        <input id="cafCustomMg" type="number" placeholder="mg" min="0" max="1000">
+        <button class="caf-add" id="cafCustomAdd" type="button">Add &amp; log</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5) LOGGED TODAY -->
+  <div class="section">
+    <div class="section-title">Logged Today</div>
+    <div class="gm-card">
+      <ul class="caf-log-list" id="cafLogList"></ul>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------------- constants ----------------
+  var HALF_LIFE = 5;          // hours
+  var PEAK_MIN = 45;          // minutes to peak (per-drink milestone)
+  var FDA_CEIL = 400;         // mg/day
+  var CLEAR_MG = 10;          // "cleared" when a drink's contribution < this
+
+  var LOGS_KEY = 'caf:logs';
+  var CUSTOM_KEY = 'caf:custom';
+
+  // ---------------- drink database (~60) ----------------
+  var DRINKS = [
+    // coffee
+    {n:'Drip coffee (8oz)',mg:95,e:'☕'},{n:'Brewed coffee (12oz)',mg:140,e:'☕'},
+    {n:'Espresso (single)',mg:63,e:'☕'},{n:'Double espresso',mg:126,e:'☕'},
+    {n:'Latte',mg:63,e:'☕'},{n:'Cappuccino',mg:63,e:'☕'},{n:'Flat white',mg:130,e:'☕'},
+    {n:'Americano',mg:94,e:'☕'},{n:'Mocha',mg:90,e:'☕'},{n:'Macchiato',mg:85,e:'☕'},
+    {n:'Instant coffee',mg:60,e:'☕'},{n:'Decaf coffee',mg:3,e:'☕'},{n:'Turkish coffee',mg:100,e:'☕'},
+    {n:'Nespresso pod',mg:60,e:'☕'},{n:'Bulletproof coffee',mg:95,e:'☕'},
+    {n:'Cold brew (16oz)',mg:200,e:'🧊'},{n:'Iced coffee',mg:120,e:'🧊'},{n:'Frappuccino',mg:95,e:'🧊'},
+    // tea
+    {n:'Black tea',mg:47,e:'🍵'},{n:'Green tea',mg:28,e:'🍵'},{n:'White tea',mg:25,e:'🍵'},
+    {n:'Oolong tea',mg:38,e:'🍵'},{n:'Matcha',mg:70,e:'🍵'},{n:'Chai latte',mg:50,e:'🍵'},
+    {n:'Earl grey',mg:40,e:'🍵'},{n:'Iced tea',mg:25,e:'🧊'},{n:'Yerba mate',mg:85,e:'🧉'},
+    {n:'Kombucha',mg:15,e:'🍶'},
+    // energy
+    {n:'Red Bull (250ml)',mg:80,e:'⚡'},{n:'Monster (500ml)',mg:160,e:'⚡'},{n:'Rockstar (500ml)',mg:160,e:'⚡'},
+    {n:'Bang (16oz)',mg:300,e:'⚡'},{n:'Reign (16oz)',mg:300,e:'⚡'},{n:'Celsius',mg:200,e:'⚡'},
+    {n:'V Energy',mg:155,e:'⚡'},{n:'Mother',mg:160,e:'⚡'},{n:'5-hour Energy',mg:200,e:'⚡'},
+    {n:'Prime Energy',mg:200,e:'⚡'},{n:'G Fuel',mg:150,e:'⚡'},
+    // soda
+    {n:'Coca-Cola (12oz)',mg:34,e:'🥤'},{n:'Diet Coke',mg:46,e:'🥤'},{n:'Coke Zero',mg:34,e:'🥤'},
+    {n:'Pepsi',mg:38,e:'🥤'},{n:'Pepsi Max',mg:69,e:'🥤'},{n:'Mountain Dew',mg:54,e:'🥤'},
+    {n:'Dr Pepper',mg:41,e:'🥤'},{n:"Barq's root beer",mg:22,e:'🥤'},
+    // pre-workout / pills
+    {n:'Pre-workout scoop',mg:200,e:'💊'},{n:'C4 pre-workout',mg:150,e:'💊'},
+    {n:'Caffeine pill (200mg)',mg:200,e:'💊'},{n:'Caffeine pill (100mg)',mg:100,e:'💊'},
+    {n:'Pro Plus tablet',mg:50,e:'💊'},{n:'Excedrin tablet',mg:65,e:'💊'},
+    // chocolate / misc
+    {n:'Dark chocolate (1oz)',mg:24,e:'🍫'},{n:'Milk chocolate (1oz)',mg:9,e:'🍫'},
+    {n:'Hot chocolate',mg:5,e:'🍫'},{n:'Cocoa',mg:12,e:'🍫'},{n:'Guarana',mg:40,e:'🌰'},
+    {n:'Espresso martini',mg:100,e:'🍸'}
+  ];
+
+  // ---------------- storage ----------------
+  function load(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) || fallback; } catch (e) { return fallback; } }
+  function save(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
+  var logs = load(LOGS_KEY, []);
+  var custom = load(CUSTOM_KEY, []);
+  function persistLogs() { logs = logs || []; save(LOGS_KEY, logs); }
+  function persistCustom() { custom = custom || []; save(CUSTOM_KEY, custom); }
+
+  // ---------------- context (weight + WHOOP) ----------------
+  var ctx = { weightKg: 75, wake: 7, bedtime: 23, recovery: null };
+
+  function readWeight() {
+    var s = null;
+    try { s = JSON.parse(localStorage.getItem('po_water_v1')); } catch (e) {}
+    if (!s || !s.profile) return;
+    var w = s.profile.weightKg;
+    if (typeof w === 'number' && w > 0) {
+      ctx.weightKg = (s.weightUnit === 'lb') ? w / 2.20462 : w; // po-water stores value in the chosen unit
+    }
+  }
+
+  function hourOfISO(iso) { var d = new Date(iso); return d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600; }
+
+  async function loadWhoop() {
+    var tok = null;
+    try { tok = JSON.parse(localStorage.getItem('whoop_tokens_v1')); } catch (e) {}
+    if (!tok) return; // no WHOOP connected — keep sensible defaults
+    try {
+      var r = await fetch('/api/whoop-data');
+      if (r.status === 401) {
+        try { await fetch('/api/whoop-refresh', { method: 'POST' }); } catch (e) {}
+        r = await fetch('/api/whoop-data');
+      }
+      if (!r.ok) return;
+      var d = await r.json();
+      var rec = d.recovery || d.recovery_score || (d.records && d.records[0]);
+      if (rec != null) {
+        var score = (typeof rec === 'number') ? rec : (rec.score != null ? rec.score : (rec.recovery_score != null ? rec.recovery_score : null));
+        if (score != null) ctx.recovery = score;
+      }
+      var sleep = d.sleep || (d.activity && d.activity.sleep) || null;
+      if (sleep) {
+        var start = sleep.start || (sleep.score && sleep.score.stage_summary && sleep.start);
+        var end = sleep.end;
+        if (start) ctx.bedtime = hourOfISO(start);
+        if (end) ctx.wake = hourOfISO(end);
+      }
+      rerender();
+    } catch (e) { /* offline / no backend — graceful */ }
+  }
+
+  // ---------------- date helpers ----------------
+  function dateKey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function todayKey() { return dateKey(new Date()); }
+  function todaysLogs() { var k = todayKey(); return (logs || []).filter(function (l) { return l && l.time && dateKey(new Date(l.time)) === k; }); }
+  function nowHour() { var d = new Date(); return d.getHours() + d.getMinutes() / 60; }
+  function fmtHour(h) {
+    h = ((h % 24) + 24) % 24;
+    var hr = Math.floor(h), mn = Math.round((h - hr) * 60);
+    if (mn === 60) { mn = 0; hr = (hr + 1) % 24; }
+    var ap = hr < 12 ? 'AM' : 'PM'; var h12 = hr % 12; if (h12 === 0) h12 = 12;
+    return h12 + ':' + String(mn).padStart(2, '0') + ' ' + ap;
+  }
+  function fmtHourShort(h) {
+    h = ((h % 24) + 24) % 24; var hr = Math.round(h);
+    var ap = hr < 12 ? 'AM' : 'PM'; var h12 = hr % 12; if (h12 === 0) h12 = 12;
+    return h12 + ap;
+  }
+
+  // ---------------- pharmacokinetics ----------------
+  function activeAt(hour) {
+    var sum = 0, list = todaysLogs();
+    for (var i = 0; i < list.length; i++) {
+      var dh = hourOfISO(list[i].time);
+      if (hour >= dh) sum += list[i].mg * Math.pow(0.5, (hour - dh) / HALF_LIFE);
+    }
+    return sum;
+  }
+  function totalToday() { var s = 0, l = todaysLogs(); for (var i = 0; i < l.length; i++) s += l[i].mg; return s; }
+
+  // ---------------- energy model ----------------
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function gaussian(x, mu, sd) { return Math.exp(-((x - mu) * (x - mu)) / (2 * sd * sd)); }
+  function circadian(t) { return 50 + 18 * Math.cos(2 * Math.PI * (t - 16.5) / 24); }
+
+  function energyAt(t, useCaffeine) {
+    var wake = ctx.wake, bed = ctx.bedtime;
+    var asleep = (t < wake || t >= bed);
+    if (asleep) return clamp(circadian(t) - 34, 3, 20);
+    var lunchDip = 10 * gaussian(t, 14, 1.4);
+    var sleepPressure = clamp(t - wake, 0, 24) * 1.7;
+    var morningBump = 10 * gaussian(t - wake, 1.2, 0.9);
+    var boost = 0;
+    if (useCaffeine) { var a = activeAt(t); boost = 34 * (1 - Math.exp(-a / 110)); }
+    return clamp(circadian(t) - lunchDip - sleepPressure + morningBump + boost, 0, 100);
+  }
+
+  // sample every 10 min across 24h
+  function sampleDay() {
+    var out = [];
+    for (var i = 0; i <= 144; i++) {
+      var t = i / 6; // 10-min steps
+      out.push({ t: t, e: energyAt(t, true), base: energyAt(t, false), mg: activeAt(t) });
+    }
+    return out;
+  }
+
+  function scoreColor(s) { return s >= 62 ? 'var(--success)' : (s >= 40 ? 'var(--warning)' : 'var(--danger)'); }
+  function scoreColorHex(s) { return s >= 62 ? '#6BE3A4' : (s >= 40 ? '#F2C063' : '#FF6B6B'); }
+  function stateWord(s) { return s >= 80 ? 'Peak' : s >= 62 ? 'High' : s >= 46 ? 'Steady' : s >= 34 ? 'Dip' : 'Low'; }
+
+  // ---------------- ring ----------------
+  var RING_C = 2 * Math.PI * 52;
+  function renderRing(score, whenLabel) {
+    var fill = document.getElementById('cafRingFill');
+    fill.setAttribute('stroke-dasharray', RING_C);
+    fill.setAttribute('stroke-dashoffset', RING_C * (1 - clamp(score, 0, 100) / 100));
+    fill.style.stroke = scoreColor(score);
+    document.getElementById('cafRingScore').textContent = Math.round(score);
+    document.getElementById('cafRingState').textContent = stateWord(score);
+    document.getElementById('cafRingWhen').textContent = whenLabel;
+  }
+
+  // ---------------- curve svg ----------------
+  var VBW = 720, VBH = 240;
+  var chartMode = 'line';
+  function xOf(t) { return t / 24 * VBW; }
+  function yOf(e) { return VBH - (clamp(e, 0, 100) / 100) * VBH; }
+  var lastSamples = [];
+
+  function renderCurve(samples) {
+    lastSamples = samples;
+    var svg = document.getElementById('cafCurve');
+    var wake = ctx.wake, bed = ctx.bedtime, nh = nowHour();
+    var parts = [];
+
+    // night shading (before wake, after bedtime)
+    parts.push('<rect x="0" y="0" width="' + xOf(wake) + '" height="' + VBH + '" fill="rgba(120,130,180,0.06)"/>');
+    parts.push('<rect x="' + xOf(bed) + '" y="0" width="' + (VBW - xOf(bed)) + '" height="' + VBH + '" fill="rgba(120,130,180,0.06)"/>');
+    // faint gridlines at 6a/12p/6p
+    [6, 12, 18].forEach(function (g) { parts.push('<line x1="' + xOf(g) + '" y1="0" x2="' + xOf(g) + '" y2="' + VBH + '" stroke="rgba(255,255,255,0.04)"/>'); });
+
+    if (chartMode === 'bars') {
+      var step = 6; // every hour (6 samples)
+      for (var i = 0; i < samples.length; i += step) {
+        var s = samples[i]; var bw = VBW / 24 * 0.7; var bx = xOf(s.t) - bw / 2;
+        parts.push('<rect x="' + bx + '" y="' + yOf(s.e) + '" width="' + bw + '" height="' + (VBH - yOf(s.e)) + '" rx="2" fill="' + scoreColorHex(s.e) + '" opacity="0.65"/>');
+      }
+    } else if (chartMode === 'stack') {
+      // baseline area
+      var pb = 'M0,' + VBH;
+      samples.forEach(function (s) { pb += ' L' + xOf(s.t).toFixed(1) + ',' + yOf(s.base).toFixed(1); });
+      pb += ' L' + VBW + ',' + VBH + ' Z';
+      parts.push('<path d="' + pb + '" fill="rgba(180,182,176,0.10)" stroke="rgba(184,182,176,0.5)" stroke-width="1.5"/>');
+      // caffeine contribution (between base and e), only where positive
+      var pc = '';
+      var open = false;
+      samples.forEach(function (s) {
+        if (s.e > s.base + 0.3) {
+          if (!open) { pc += ' M' + xOf(s.t).toFixed(1) + ',' + yOf(s.base).toFixed(1); open = true; }
+          pc += ' L' + xOf(s.t).toFixed(1) + ',' + yOf(s.e).toFixed(1);
+        } else if (open) { open = false; }
+      });
+      // fill caffeine band by drawing top (e) then back along base
+      var top = 'M', bot = '';
+      samples.forEach(function (s, i) { top += (i === 0 ? '' : ' L') + xOf(s.t).toFixed(1) + ',' + yOf(s.e).toFixed(1); });
+      for (var j = samples.length - 1; j >= 0; j--) { bot += ' L' + xOf(samples[j].t).toFixed(1) + ',' + yOf(samples[j].base).toFixed(1); }
+      parts.push('<path d="' + top + bot + ' Z" fill="rgba(201,163,107,0.22)"/>');
+      parts.push('<path d="' + top + '" fill="none" stroke="#C9A36B" stroke-width="2.5" stroke-linejoin="round" style="filter:drop-shadow(0 0 5px rgba(201,163,107,0.6))"/>');
+    } else {
+      // line
+      var pl = '';
+      samples.forEach(function (s, i) { pl += (i === 0 ? 'M' : ' L') + xOf(s.t).toFixed(1) + ',' + yOf(s.e).toFixed(1); });
+      // soft fill under
+      parts.push('<path d="' + pl + ' L' + VBW + ',' + VBH + ' L0,' + VBH + ' Z" fill="rgba(107,227,164,0.07)"/>');
+      parts.push('<path d="' + pl + '" fill="none" stroke="#6BE3A4" stroke-width="2.6" stroke-linejoin="round" stroke-linecap="round" style="filter:drop-shadow(0 0 5px rgba(107,227,164,0.55))"/>');
+    }
+
+    // "now" marker
+    var eNow = energyAt(nh, true);
+    parts.push('<line id="cafNowLine" x1="' + xOf(nh) + '" y1="0" x2="' + xOf(nh) + '" y2="' + VBH + '" stroke="rgba(255,255,255,0.4)" stroke-width="1.5" stroke-dasharray="3 3"/>');
+    parts.push('<circle id="cafNowDot" cx="' + xOf(nh) + '" cy="' + yOf(eNow) + '" r="5" fill="#FFFFFF"/>');
+    // scrub marker (hidden until hover)
+    parts.push('<line id="cafScrubLine" x1="0" y1="0" x2="0" y2="' + VBH + '" stroke="rgba(201,163,107,0.8)" stroke-width="1.5" style="display:none"/>');
+    parts.push('<circle id="cafScrubDot" cx="0" cy="0" r="5" fill="#C9A36B" style="display:none"/>');
+
+    svg.innerHTML = parts.join('');
+  }
+
+  // ---------------- scrub interaction ----------------
+  function svgHourFromEvent(ev) {
+    var svg = document.getElementById('cafCurve');
+    var rect = svg.getBoundingClientRect();
+    var cx = (ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left;
+    var t = clamp(cx / rect.width, 0, 1) * 24;
+    return t;
+  }
+  function scrubTo(t) {
+    var e = energyAt(t, true);
+    renderRing(e, fmtHour(t));
+    var line = document.getElementById('cafScrubLine'), dot = document.getElementById('cafScrubDot');
+    if (line && dot) {
+      line.setAttribute('x1', xOf(t)); line.setAttribute('x2', xOf(t)); line.style.display = '';
+      dot.setAttribute('cx', xOf(t)); dot.setAttribute('cy', yOf(e)); dot.style.display = '';
+    }
+  }
+  function scrubEnd() {
+    var line = document.getElementById('cafScrubLine'), dot = document.getElementById('cafScrubDot');
+    if (line) line.style.display = 'none';
+    if (dot) dot.style.display = 'none';
+    renderRing(energyAt(nowHour(), true), 'Right now');
+  }
+  var dragging = false;
+  function bindScrub() {
+    var svg = document.getElementById('cafCurve');
+    svg.addEventListener('mousemove', function (e) { scrubTo(svgHourFromEvent(e)); });
+    svg.addEventListener('mouseleave', scrubEnd);
+    svg.addEventListener('touchstart', function (e) { dragging = true; scrubTo(svgHourFromEvent(e)); e.preventDefault(); }, { passive: false });
+    svg.addEventListener('touchmove', function (e) { if (dragging) { scrubTo(svgHourFromEvent(e)); e.preventDefault(); } }, { passive: false });
+    svg.addEventListener('touchend', function () { dragging = false; scrubEnd(); });
+  }
+
+  // ---------------- analysis (peak / crash / windows) ----------------
+  function wakingSamples(samples) { return samples.filter(function (s) { return s.t >= ctx.wake && s.t < ctx.bedtime; }); }
+
+  function peakInfo(samples) {
+    var ws = wakingSamples(samples); if (!ws.length) return null;
+    var best = ws[0]; ws.forEach(function (s) { if (s.e > best.e) best = s; });
+    // window where energy stays within 6 of peak, contiguous around peak
+    var lo = best.t, hi = best.t;
+    for (var i = 0; i < ws.length; i++) { if (ws[i].e >= best.e - 6) { if (ws[i].t < lo) lo = ws[i].t; if (ws[i].t > hi) hi = ws[i].t; } }
+    return { time: best.t, score: best.e, lo: lo, hi: hi };
+  }
+
+  function crashInfo(samples) {
+    var nh = nowHour();
+    var window8 = samples.filter(function (s) { return s.t >= nh && s.t <= nh + 8 && s.t < ctx.bedtime; });
+    if (window8.length < 6) return null;
+    var worst = null; // steepest sustained ~90min drop
+    for (var i = 0; i + 9 < window8.length; i++) {
+      var drop = window8[i].e - window8[i + 9].e; // 90 min later
+      if (!worst || drop > worst.drop) worst = { start: window8[i].t, drop: drop, to: window8[i + 9].e, toT: window8[i + 9].t };
+    }
+    if (!worst || worst.drop < 12) return null; // only if significant
+    return worst;
+  }
+
+  // ---------------- render: your day + timing + today ----------------
+  function coffeeCutoffHour() { return ctx.bedtime - 5 * Math.log2(95 / 30); } // ~8.31h before bed
+
+  function renderDay(samples) {
+    renderCurve(samples);
+    renderRing(energyAt(nowHour(), true), 'Right now');
+
+    var pk = peakInfo(samples);
+    document.getElementById('cafPeakWin').textContent = pk ? (fmtHour(pk.lo) + ' – ' + fmtHour(pk.hi)) : '—';
+    var cr = crashInfo(samples);
+    document.getElementById('cafCrash').textContent = cr ? (fmtHour(cr.start) + ' (↓' + Math.round(cr.drop) + ')') : 'None expected';
+    document.getElementById('cafCutoff').textContent = fmtHour(coffeeCutoffHour());
+  }
+
+  function renderTiming(samples) {
+    var pk = peakInfo(samples);
+    if (pk) {
+      document.getElementById('cafProdTime').textContent = fmtHour(pk.time);
+      document.getElementById('cafProdSub').textContent = 'Window ' + fmtHourShort(pk.lo) + '–' + fmtHourShort(pk.hi) + ' · ' + Math.round(pk.score) + '/100';
+    }
+    var cr = crashInfo(samples);
+    if (cr) {
+      document.getElementById('cafCrashTime').textContent = fmtHour(cr.start);
+      document.getElementById('cafCrashSub').textContent = 'Dips to ' + Math.round(cr.to) + '/100 by ' + fmtHour(cr.toT);
+    } else {
+      document.getElementById('cafCrashTime').textContent = 'Steady';
+      document.getElementById('cafCrashSub').textContent = 'No big crash in the next 8h';
+    }
+    var cut = coffeeCutoffHour();
+    document.getElementById('cafCutoffTime').textContent = fmtHour(cut);
+    document.getElementById('cafCutoffSub').textContent = 'So caffeine is <30 mg by ' + fmtHour(ctx.bedtime);
+
+    // tips
+    var tips = [];
+    tips.push('Front-load your caffeine — aim your biggest cup 30–60 min after waking (~' + fmtHour(ctx.wake + 0.75) + '), not the second you get up.');
+    tips.push('Last coffee by <b>' + fmtHour(cut) + '</b> to protect your ' + fmtHour(ctx.bedtime) + ' bedtime.');
+    tips.push('Chase every coffee with water — caffeine is mildly dehydrating and dehydration mimics fatigue.');
+    if (cr) tips.push('Beat the ' + fmtHour(cr.start) + ' dip with 5–10 min of daylight or a short walk instead of another cup.');
+    else tips.push('Get some daylight in the afternoon to keep your circadian rhythm sharp.');
+    if (ctx.recovery != null && ctx.recovery < 50) tips.push('Recovery is low (' + Math.round(ctx.recovery) + '%) — go easy on caffeine today; your ceiling is trimmed below.');
+    var ul = document.getElementById('cafTips');
+    ul.innerHTML = tips.map(function (t) { return '<li>' + t + '</li>'; }).join('');
+  }
+
+  function ceilingMg() {
+    if (ctx.recovery != null) { if (ctx.recovery < 34) return 200; if (ctx.recovery < 50) return 300; }
+    return FDA_CEIL;
+  }
+  function targetMg() { return Math.round(3 * ctx.weightKg); }
+
+  function renderToday() {
+    var total = Math.round(totalToday());
+    var limit = ceilingMg();
+    var target = targetMg();
+    var active = Math.round(activeAt(nowHour()));
+    document.getElementById('cafTotalMg').textContent = total;
+    document.getElementById('cafLimitMg').textContent = limit;
+    document.getElementById('cafActiveMg').textContent = active;
+    var pct = clamp(total / limit * 100, 0, 100);
+    var fill = document.getElementById('cafBarFill');
+    fill.style.width = pct + '%';
+    fill.style.background = total > limit ? 'var(--danger)' : (total > target ? 'var(--warning)' : 'var(--success)');
+    document.getElementById('cafBarTarget').style.left = clamp(target / limit * 100, 0, 100) + '%';
+    var note = 'Your personalized target is ≈ <b>' + target + ' mg</b>/day (3 mg/kg from your ' + Math.round(ctx.weightKg) + ' kg). ';
+    if (ctx.recovery != null && limit < FDA_CEIL) note += 'Recovery is low, so today\'s ceiling is trimmed to <b>' + limit + ' mg</b>. ';
+    else note += 'FDA safe ceiling is <b>' + FDA_CEIL + ' mg</b>. ';
+    if (total > limit) note += 'You\'re over the ceiling — ease off.';
+    else if (total > target) note += 'You\'re above your ideal target but under the ceiling.';
+    else note += 'You\'re in a good range.';
+    document.getElementById('cafNote').innerHTML = note;
+  }
+
+  // ---------------- log a drink ----------------
+  function allDrinks() { return DRINKS.concat((custom || []).map(function (c) { return { n: c.n, mg: c.mg, e: c.e || '⭐', custom: true }; })); }
+
+  function renderDrinks(filter) {
+    filter = (filter || '').trim().toLowerCase();
+    var list = allDrinks();
+    if (filter) list = list.filter(function (d) { return d.n.toLowerCase().indexOf(filter) !== -1; });
+    var box = document.getElementById('cafDrinks');
+    if (!list.length) { box.innerHTML = '<div class="caf-empty">No drinks match — add a custom one below.</div>'; return; }
+    box.innerHTML = list.map(function (d, i) {
+      return '<button class="caf-drink" data-name="' + esc(d.n) + '" data-mg="' + d.mg + '" data-emoji="' + esc(d.e) + '" type="button">' +
+        '<span class="caf-drink-emoji">' + d.e + '</span>' +
+        '<span class="caf-drink-name">' + esc(d.n) + '</span>' +
+        '<span class="caf-drink-mg">' + d.mg + ' mg</span></button>';
+    }).join('');
+    Array.prototype.forEach.call(box.querySelectorAll('.caf-drink'), function (btn) {
+      btn.addEventListener('click', function () { logDrink(btn.getAttribute('data-name'), parseFloat(btn.getAttribute('data-mg')), btn.getAttribute('data-emoji')); });
+    });
+  }
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+  function logDrink(name, mg, emoji) {
+    if (!name || !(mg >= 0)) return;
+    logs.push({ id: 'c' + Date.now() + '_' + Math.floor(Math.random() * 999), name: name, mg: mg, emoji: emoji || '☕', time: new Date().toISOString() });
+    persistLogs();
+    rerender();
+  }
+  function deleteLog(id) { logs = (logs || []).filter(function (l) { return l.id !== id; }); persistLogs(); rerender(); }
+
+  function addCustom() {
+    var name = document.getElementById('cafCustomName').value.trim();
+    var mg = parseFloat(document.getElementById('cafCustomMg').value);
+    if (!name || !(mg >= 0)) return;
+    if (!(custom || []).some(function (c) { return c.n.toLowerCase() === name.toLowerCase(); })) { custom.push({ n: name, mg: mg, e: '⭐' }); persistCustom(); }
+    document.getElementById('cafCustomName').value = '';
+    document.getElementById('cafCustomMg').value = '';
+    logDrink(name, mg, '⭐');
+    renderDrinks(document.getElementById('cafSearch').value);
+  }
+
+  // ---------------- logged today ----------------
+  function milestones(l) {
+    var dh = hourOfISO(l.time);
+    var cleared = l.mg > CLEAR_MG ? dh + HALF_LIFE * Math.log2(l.mg / CLEAR_MG) : dh;
+    return { peak: dh + PEAK_MIN / 60, half: dh + HALF_LIFE, cleared: cleared };
+  }
+  function renderLogged() {
+    var list = todaysLogs().slice().sort(function (a, b) { return new Date(a.time) - new Date(b.time); });
+    var ul = document.getElementById('cafLogList');
+    if (!list.length) { ul.innerHTML = '<li class="caf-empty" style="border:0">No caffeine logged today yet.</li>'; return; }
+    ul.innerHTML = list.map(function (l) {
+      var m = milestones(l);
+      return '<li class="caf-log-item">' +
+        '<span class="caf-log-emoji">' + (l.emoji || '☕') + '</span>' +
+        '<div class="caf-log-main"><div class="caf-log-name">' + esc(l.name) + '<b>' + Math.round(l.mg) + ' mg</b></div>' +
+        '<div class="caf-log-times"><span>logged ' + fmtHour(hourOfISO(l.time)) + '</span><span>peak ' + fmtHour(m.peak) + '</span><span>½ ' + fmtHour(m.half) + '</span><span>clear ' + fmtHour(m.cleared) + '</span></div></div>' +
+        '<button class="caf-log-del" data-id="' + l.id + '" type="button" aria-label="Delete">&times;</button></li>';
+    }).join('');
+    Array.prototype.forEach.call(ul.querySelectorAll('.caf-log-del'), function (b) { b.addEventListener('click', function () { deleteLog(b.getAttribute('data-id')); }); });
+  }
+
+  // ---------------- master render ----------------
+  function rerender() {
+    readWeight();
+    var samples = sampleDay();
+    renderDay(samples);
+    renderTiming(samples);
+    renderToday();
+    renderLogged();
+  }
+
+  // ---------------- wire up ----------------
+  document.getElementById('cafToggle').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    chartMode = b.getAttribute('data-mode');
+    Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) { x.classList.toggle('active', x === b); });
+    renderCurve(lastSamples.length ? lastSamples : sampleDay());
+  });
+  document.getElementById('cafSearch').addEventListener('input', function () { renderDrinks(this.value); });
+  document.getElementById('cafCustomAdd').addEventListener('click', addCustom);
+  document.getElementById('cafCustomMg').addEventListener('keydown', function (e) { if (e.key === 'Enter') addCustom(); });
+
+  bindScrub();
+  renderDrinks('');
+  rerender();
+  loadWhoop();
+
+  // refresh "now" position periodically
+  setInterval(rerender, 5 * 60 * 1000);
+  window.addEventListener('focus', rerender);
+
+  // ---------------- cloud sync ----------------
+  document.addEventListener('DOMContentLoaded', function () {
+    if (typeof initCloudSync !== 'function') return;
+    initCloudSync({
+      appKey: 'caffeine',
+      syncedKeys: ['caf:logs', 'caf:custom'],
+      onApplied: function () { logs = load(LOGS_KEY, []); custom = load(CUSTOM_KEY, []); rerender(); renderDrinks(document.getElementById('cafSearch').value); }
+    });
+  });
+})();
+</script>
+</body>
+</html>
