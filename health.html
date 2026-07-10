@@ -83,6 +83,27 @@ main {
   display: flex; align-items: center; gap: 12px;
 }
 .section-title::before { content: '≡'; font-size: 14px; opacity: 0.5; }
+
+/* ----- Sleep (from Garmin) ----- */
+.hsleep-embed { margin-top: 40px; }
+.hsleep-card {
+  background: rgba(255,255,255,0.04); border-radius: 16px; padding: 20px;
+  backdrop-filter: blur(24px) saturate(1.2); -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+}
+.hsleep-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.hsleep-big { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.hsleep-big small { font-size: 14px; color: var(--text-tertiary); font-weight: 600; }
+.hsleep-meta { font-size: 12px; color: var(--text-tertiary); }
+.hsleep-meta b { color: var(--text-primary); font-weight: 700; }
+.hsleep-chart { width: 100%; height: auto; display: block; overflow: visible; }
+.hsleep-axis { display: flex; justify-content: space-between; margin-top: 5px; font-family: var(--font-mono); font-size: 9.5px; color: var(--text-tertiary); }
+.hsleep-stages { display: flex; height: 12px; border-radius: 5px; overflow: hidden; background: rgba(255,255,255,0.05); margin-top: 16px; }
+.hsleep-stages > div { height: 100%; }
+.hsleep-legend { display: flex; gap: 14px; margin-top: 8px; flex-wrap: wrap; font-size: 10.5px; color: var(--text-secondary); }
+.hsleep-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.hsleep-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.hsleep-empty { color: var(--text-tertiary); font-size: 12px; font-style: italic; text-align: center; padding: 22px 0; }
 .water-embed { margin-top: 56px; }
 .water-iframe {
   display: block;
@@ -512,12 +533,79 @@ main {
     </div>
   </div>
 
+  <section id="sleep" class="hsleep-embed">
+    <div class="section-title">Sleep</div>
+    <div class="hsleep-card" id="hsleepCard">
+      <div class="hsleep-empty">Loading sleep from Garmin…</div>
+    </div>
+  </section>
+
   <section id="water" class="water-embed">
     <div class="section-title">Water Tracker</div>
     <iframe src="po-water.html" class="water-iframe" loading="lazy" title="Water Tracker"></iframe>
   </section>
   <div class="attribution">// editable template · all data stays in your browser</div>
 </main>
+
+<script>
+/* Sleep chart — reads the Garmin row synced into Supabase (key 'garmin'). */
+(function () {
+  'use strict';
+  var URL = 'https://qolajqziujbfsiguaozo.supabase.co';
+  var KEY = 'sb_publishable_MJLciRMTTp9K7Qyb_HojdQ_5pqgnX7l';
+  var MONS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function shortDate(iso) { var p = (iso || '').split('-'); return p.length < 3 ? iso : (parseInt(p[2], 10) + ' ' + MONS[parseInt(p[1], 10) - 1]); }
+  function hms(sec) { sec = Math.round(sec || 0); var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60); return h + 'h ' + String(m).padStart(2, '0') + 'm'; }
+  function quality(h, score) {
+    var good = (score != null) ? score >= 80 : h >= 7.5;
+    var mid = (score != null) ? score >= 65 : h >= 6.5;
+    return good ? '#6BE3A4' : (mid ? '#F2C063' : '#FF6B6B');
+  }
+  function render(d) {
+    var card = document.getElementById('hsleepCard');
+    var hist = (d && Array.isArray(d.sleep_history)) ? d.sleep_history.filter(function (s) { return s && s.hours; }) : [];
+    if (!hist.length) { card.innerHTML = '<div class="hsleep-empty">No sleep data yet — it syncs from Garmin each day.</div>'; return; }
+    var W = 720, H = 200, maxH = 10, n = hist.length, slot = W / n, bw = Math.min(slot * 0.6, 44);
+    var avg = (hist.reduce(function (a, s) { return a + s.hours; }, 0) / n).toFixed(1);
+    var bars = hist.map(function (s, i) {
+      var x = (i + 0.5) * slot, h = Math.min(s.hours, maxH) / maxH * H, y = H - h;
+      return '<rect x="' + (x - bw / 2).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="3" fill="' + quality(s.hours, s.score) + '" opacity="0.9">' +
+        '<title>' + shortDate(s.date) + ': ' + s.hours + 'h' + (s.score != null ? ' · score ' + s.score : '') + '</title></rect>';
+    }).join('');
+    var ty = H - (8 / maxH * H);
+    var target = '<line x1="0" y1="' + ty + '" x2="' + W + '" y2="' + ty + '" stroke="rgba(255,255,255,0.22)" stroke-dasharray="4 4"/>' +
+      '<text x="3" y="' + (ty - 4) + '" fill="rgba(255,255,255,0.4)" font-size="10" font-family="monospace">8h goal</text>';
+    var head = '<div class="hsleep-head"><div class="hsleep-big">' + d.sleep_hours + ' <small>h last night</small></div>' +
+      '<div class="hsleep-meta">' + (d.sleep_score != null ? 'Score <b>' + d.sleep_score + '</b> · ' : '') + n + '-night avg <b>' + avg + 'h</b></div></div>';
+    var stages = '';
+    if (d.sleep_seconds) {
+      var deep = d.deep_sleep_seconds || 0, rem = d.rem_sleep_seconds || 0, light = d.light_sleep_seconds || 0, tot = deep + rem + light || d.sleep_seconds;
+      stages = '<div class="hsleep-stages">' +
+        '<div style="width:' + (deep / tot * 100) + '%;background:#5B7CFA"></div>' +
+        '<div style="width:' + (rem / tot * 100) + '%;background:#A78BFA"></div>' +
+        '<div style="width:' + (light / tot * 100) + '%;background:#67C8E8"></div></div>' +
+        '<div class="hsleep-legend"><span><i style="background:#5B7CFA"></i>Deep ' + hms(deep) + '</span>' +
+        '<span><i style="background:#A78BFA"></i>REM ' + hms(rem) + '</span>' +
+        '<span><i style="background:#67C8E8"></i>Light ' + hms(light) + '</span></div>';
+    }
+    card.innerHTML = head +
+      '<svg class="hsleep-chart" viewBox="0 0 ' + W + ' ' + H + '">' + target + bars + '</svg>' +
+      '<div class="hsleep-axis"><span>' + shortDate(hist[0].date) + '</span><span>' + shortDate(hist[hist.length - 1].date) + '</span></div>' +
+      stages;
+  }
+  async function load() {
+    if (!window.supabase) return;
+    try {
+      var supa = window.supabase.createClient(URL, KEY);
+      var res = await supa.from('app_state').select('data').eq('key', 'garmin').maybeSingle();
+      if (res && res.data && res.data.data) render(res.data.data);
+      else document.getElementById('hsleepCard').innerHTML = '<div class="hsleep-empty">No sleep data yet — it syncs from Garmin each day.</div>';
+    } catch (e) {}
+  }
+  load();
+  window.addEventListener('focus', load);
+})();
+</script>
 
 <script>
 (() => {

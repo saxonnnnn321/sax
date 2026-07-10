@@ -346,32 +346,24 @@ body::after {
 
   function hourOfISO(iso) { var d = new Date(iso); return d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600; }
 
-  async function loadWhoop() {
-    var tok = null;
-    try { tok = JSON.parse(localStorage.getItem('whoop_tokens_v1')); } catch (e) {}
-    if (!tok) return; // no WHOOP connected — keep sensible defaults
+  // Pull your real sleep schedule from Garmin (synced into Supabase under
+  // key 'garmin'). Uses your actual bedtime/wake for the energy model, and
+  // your Garmin sleep score as a recovery proxy for the caffeine ceiling.
+  // Degrades gracefully to the wake 5:00 / bed 21:00 defaults if absent.
+  var GARMIN_SB_URL = 'https://qolajqziujbfsiguaozo.supabase.co';
+  var GARMIN_SB_KEY = 'sb_publishable_MJLciRMTTp9K7Qyb_HojdQ_5pqgnX7l';
+  async function loadGarmin() {
+    if (!window.supabase) return;
     try {
-      var r = await fetch('/api/whoop-data');
-      if (r.status === 401) {
-        try { await fetch('/api/whoop-refresh', { method: 'POST' }); } catch (e) {}
-        r = await fetch('/api/whoop-data');
-      }
-      if (!r.ok) return;
-      var d = await r.json();
-      var rec = d.recovery || d.recovery_score || (d.records && d.records[0]);
-      if (rec != null) {
-        var score = (typeof rec === 'number') ? rec : (rec.score != null ? rec.score : (rec.recovery_score != null ? rec.recovery_score : null));
-        if (score != null) ctx.recovery = score;
-      }
-      var sleep = d.sleep || (d.activity && d.activity.sleep) || null;
-      if (sleep) {
-        var start = sleep.start || (sleep.score && sleep.score.stage_summary && sleep.start);
-        var end = sleep.end;
-        if (start) ctx.bedtime = hourOfISO(start);
-        if (end) ctx.wake = hourOfISO(end);
-      }
+      var supa = window.supabase.createClient(GARMIN_SB_URL, GARMIN_SB_KEY);
+      var res = await supa.from('app_state').select('data').eq('key', 'garmin').maybeSingle();
+      var d = res && res.data ? res.data.data : null;
+      if (!d) return;
+      if (typeof d.wake_hour === 'number') ctx.wake = d.wake_hour;
+      if (typeof d.bedtime_hour === 'number') ctx.bedtime = d.bedtime_hour;
+      if (typeof d.sleep_score === 'number') ctx.recovery = d.sleep_score;
       rerender();
-    } catch (e) { /* offline / no backend — graceful */ }
+    } catch (e) { /* offline / not synced yet — graceful */ }
   }
 
   // ---------------- date helpers ----------------
@@ -727,7 +719,7 @@ body::after {
   bindScrub();
   renderDrinks('');
   rerender();
-  loadWhoop();
+  loadGarmin();
 
   // refresh "now" position periodically
   setInterval(rerender, 5 * 60 * 1000);

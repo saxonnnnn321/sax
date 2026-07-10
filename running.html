@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Running</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+
+<style>
+:root {
+  --text-primary: #FAFAFA; --text-secondary: #B8B6B0; --text-tertiary: #76746E;
+  --success: #6BE3A4; --warning: #F2C063; --danger: #FF6B6B; --run: #2DD4BF;
+  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #050506; color: var(--text-secondary); font-family: var(--font); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; -webkit-text-size-adjust: 100%; }
+body { min-height: 100vh; position: relative; overflow-x: hidden; padding: max(28px, env(safe-area-inset-top)) 20px 60px; }
+body::before { content: ''; position: fixed; inset: 0; background: radial-gradient(circle at 82% 14%, rgba(224,118,88,0.16), transparent 45%), radial-gradient(circle at 18% 90%, rgba(180,180,200,0.06), transparent 50%); filter: blur(40px); pointer-events: none; z-index: -2; animation: drift 36s ease-in-out infinite alternate; }
+body::after { content: ''; position: fixed; inset: 0; background-image: radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1px); background-size: 3px 3px; pointer-events: none; z-index: -1; }
+@keyframes drift { 0% { transform: translate3d(0,0,0); } 100% { transform: translate3d(-22px, 14px, 0); } }
+
+.page { max-width: 1100px; margin: 0 auto; }
+.dash-title { margin: 0 0 4px; font-size: 28px; font-weight: 700; letter-spacing: -0.025em; background: linear-gradient(180deg, #FFFFFF 0%, #C7C4BC 120%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+@media (max-width: 480px) { .dash-title { font-size: 22px; } }
+.r-sub { margin: 0 0 16px; font-size: 12.5px; color: var(--text-tertiary); }
+.r-sub b { color: var(--run); font-weight: 700; }
+
+.section { margin-top: 8px; }
+.section-title { font-size: 10.5px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text-tertiary); display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.section-title::before { content: ''; width: 18px; height: 1px; background: var(--text-tertiary); opacity: 0.6; }
+.section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent); }
+
+.gm-card { position: relative; background: rgba(255,255,255,0.04); border-radius: 16px; padding: 20px; margin-bottom: 14px; backdrop-filter: blur(24px) saturate(1.2); -webkit-backdrop-filter: blur(24px) saturate(1.2); box-shadow: 0 12px 40px rgba(0,0,0,0.45); overflow: hidden; }
+
+.r-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; }
+.r-stat { background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 15px; }
+.r-stat-label { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-tertiary); }
+.r-stat-val { margin-top: 8px; font-size: 26px; font-weight: 700; letter-spacing: -0.03em; color: var(--text-primary); line-height: 1; font-variant-numeric: tabular-nums; }
+.r-stat-val small { font-size: 13px; color: var(--text-tertiary); font-weight: 600; letter-spacing: 0; }
+.r-stat-sub { margin-top: 6px; font-size: 11.5px; color: var(--text-tertiary); }
+.r-stat-sub.up { color: var(--success); } .r-stat-sub.down { color: var(--warning); }
+
+/* paces table */
+.r-paces { width: 100%; border-collapse: collapse; }
+.r-paces td { padding: 11px 6px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 13.5px; }
+.r-paces tr:first-child td { border-top: 0; }
+.r-paces .r-pace-name { color: var(--text-primary); font-weight: 600; }
+.r-paces .r-pace-name small { display: block; color: var(--text-tertiary); font-weight: 400; font-size: 11px; margin-top: 2px; }
+.r-paces .r-pace-val { text-align: right; font-family: var(--font-mono); font-weight: 700; color: var(--run); white-space: nowrap; font-size: 15px; }
+.r-paces .r-pace-val small { color: var(--text-tertiary); font-weight: 400; }
+
+/* plan */
+.r-plan { list-style: none; margin: 0; padding: 0; }
+.r-plan li { display: flex; gap: 14px; padding: 13px 0; border-top: 1px solid rgba(255,255,255,0.06); }
+.r-plan li:first-child { border-top: 0; }
+.r-day { flex-shrink: 0; width: 42px; font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--text-tertiary); text-transform: uppercase; padding-top: 2px; }
+.r-work { flex: 1; }
+.r-work-title { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+.r-work-title .r-tag { display: inline-block; margin-left: 8px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; vertical-align: middle; }
+.r-tag.hard { background: rgba(255,138,138,0.14); color: #ffb0b0; }
+.r-tag.easy { background: rgba(107,227,164,0.13); color: #8ff0c0; }
+.r-tag.rest { background: rgba(255,255,255,0.07); color: var(--text-tertiary); }
+.r-tag.long { background: rgba(45,212,191,0.15); color: #7dead9; }
+.r-work-detail { margin-top: 4px; font-size: 12.5px; color: var(--text-secondary); }
+
+/* tips */
+.r-tips { list-style: none; margin: 0; padding: 0; }
+.r-tips li { padding: 12px 0; border-top: 1px solid rgba(255,255,255,0.06); }
+.r-tips li:first-child { border-top: 0; }
+.r-tip-h { font-size: 13.5px; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
+.r-tip-b { margin-top: 4px; font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+
+/* recent runs */
+.r-runs { list-style: none; margin: 0; padding: 0; }
+.r-run { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-top: 1px solid rgba(255,255,255,0.06); }
+.r-run:first-child { border-top: 0; }
+.r-run-emoji { font-size: 20px; width: 38px; height: 38px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: rgba(45,212,191,0.10); border: 1px solid rgba(45,212,191,0.18); border-radius: 11px; }
+.r-run-main { flex: 1; min-width: 0; }
+.r-run-name { font-size: 13.5px; font-weight: 600; color: var(--text-primary); }
+.r-run-when { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+.r-run-stats { font-family: var(--font-mono); font-size: 11.5px; color: var(--text-secondary); display: flex; gap: 12px; flex-wrap: wrap; margin-top: 5px; }
+.r-run-stats b { color: var(--text-primary); }
+.r-empty { text-align: center; font-size: 12px; font-style: italic; color: var(--text-tertiary); padding: 18px 0; }
+
+@media (max-width: 480px) { body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; } .gm-card { padding: 16px; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1 class="dash-title">Running</h1>
+  <p class="r-sub" id="rSub">Loading your runs from Garmin…</p>
+
+  <div class="section">
+    <div class="section-title">Recent form</div>
+    <div class="gm-card"><div class="r-grid" id="rForm"></div></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Race predictions</div>
+    <div class="gm-card"><div class="r-grid" id="rRaces"></div>
+      <p class="r-stat-sub" style="margin-top:12px">Estimated from your best recent effort (Riegel model). Real races depend on training specificity, terrain, and pacing.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Your training paces</div>
+    <div class="gm-card"><table class="r-paces" id="rPaces"></table>
+      <p class="r-stat-sub" style="margin-top:12px">Per-kilometre pace targets, tuned to your current fitness. Run easy days genuinely easy — that's where most of the gains hide.</p>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">This week's plan</div>
+    <div class="gm-card"><ul class="r-plan" id="rPlan"></ul></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">How to get faster</div>
+    <div class="gm-card"><ul class="r-tips" id="rTips"></ul></div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Recent runs</div>
+    <div class="gm-card"><ul class="r-runs" id="rRuns"><li class="r-empty">Loading…</li></ul></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var URL = 'https://qolajqziujbfsiguaozo.supabase.co';
+  var KEY = 'sb_publishable_MJLciRMTTp9K7Qyb_HojdQ_5pqgnX7l';
+  var MONS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  function startDate(s) { return new Date((s || '').replace(' ', 'T')); }
+  function fmtWhen(s) {
+    var d = startDate(s); if (isNaN(d)) return '';
+    var hr = d.getHours(), ap = hr < 12 ? 'AM' : 'PM', h12 = hr % 12 || 12;
+    return MONS[d.getMonth()] + ' ' + d.getDate() + ' · ' + h12 + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + ap;
+  }
+  function fmtTime(sec) { sec = Math.round(sec || 0); var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60; return h > 0 ? (h + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0')) : (m + ':' + String(s).padStart(2, '0')); }
+  function fmtPace(spk) { if (!isFinite(spk) || spk <= 0) return '—'; var m = Math.floor(spk / 60), s = Math.round(spk % 60); if (s === 60) { s = 0; m++; } return m + ':' + String(s).padStart(2, '0'); }
+  function fmtDur(sec) { sec = Math.round(sec || 0); var h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60); return h > 0 ? (h + 'h ' + m + 'm') : (m + ' min'); }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function render(d) {
+    var acts = (d && Array.isArray(d.activities)) ? d.activities : [];
+    var runs = acts.filter(function (a) { return a && (a.type || '').toLowerCase().indexOf('run') !== -1 && a.distance_m && a.duration_s; });
+    var sub = document.getElementById('rSub');
+
+    if (!runs.length) {
+      sub.textContent = 'No runs synced yet — head out for a run and it\'ll appear here.';
+      ['rForm','rRaces','rRuns'].forEach(function (id) { document.getElementById(id).innerHTML = '<div class="r-empty">Waiting for Garmin run data…</div>'; });
+      document.getElementById('rPaces').innerHTML = '';
+      renderTips(null); renderPlan(null); return;
+    }
+
+    // ---- weekly volume ----
+    var now = Date.now();
+    function kmIn(d0, d1) {
+      var lo = now - d1 * 864e5, hi = now - d0 * 864e5;
+      return runs.filter(function (r) { var t = startDate(r.start).getTime(); return t >= lo && t < hi; })
+        .reduce(function (a, r) { return a + r.distance_m / 1000; }, 0);
+    }
+    var thisWk = kmIn(0, 7), lastWk = kmIn(7, 14);
+    var thisWkRuns = runs.filter(function (r) { return startDate(r.start).getTime() >= now - 7 * 864e5; }).length;
+    var longest = runs.reduce(function (m, r) { return Math.max(m, r.distance_m); }, 0) / 1000;
+    var totalKm = runs.reduce(function (a, r) { return a + r.distance_m / 1000; }, 0);
+    var totalSec = runs.reduce(function (a, r) { return a + r.duration_s; }, 0);
+    var avgPace = totalSec / (totalKm || 1);
+
+    sub.innerHTML = 'This week: <b>' + thisWk.toFixed(1) + ' km</b> across ' + thisWkRuns + ' run' + (thisWkRuns === 1 ? '' : 's') + ' · synced from Garmin';
+
+    var trend = '';
+    if (lastWk > 0) { var dp = (thisWk - lastWk) / lastWk * 100; trend = (dp >= 0 ? '▲ ' : '▼ ') + Math.abs(Math.round(dp)) + '% vs last week'; }
+    document.getElementById('rForm').innerHTML =
+      stat('This week', thisWk.toFixed(1) + ' <small>km</small>', trend, lastWk > 0 && thisWk >= lastWk ? 'up' : (lastWk > 0 ? 'down' : '')) +
+      stat('Runs (7d)', thisWkRuns, '') +
+      stat('Avg pace', fmtPace(avgPace) + ' <small>/km</small>', 'across recent runs') +
+      stat('Longest', longest.toFixed(1) + ' <small>km</small>', '');
+
+    // ---- fitness: best recent effort normalised to 5K (Riegel) ----
+    var RIEGEL = 1.06;
+    var best = null;
+    runs.forEach(function (r) {
+      if (r.distance_m < 1200) return; // ignore very short efforts
+      var eq5k = r.duration_s * Math.pow(5000 / r.distance_m, RIEGEL);
+      if (!best || eq5k < best.eq5k) best = { eq5k: eq5k, r: r };
+    });
+    if (!best) { best = { r: runs[0], eq5k: runs[0].duration_s * Math.pow(5000 / runs[0].distance_m, RIEGEL) }; }
+    var T1 = best.r.duration_s, D1 = best.r.distance_m;
+    function predict(D) { return T1 * Math.pow(D / D1, RIEGEL); }
+
+    document.getElementById('rRaces').innerHTML =
+      stat('5K', fmtTime(predict(5000)), fmtPace(predict(5000) / 5) + '/km') +
+      stat('10K', fmtTime(predict(10000)), fmtPace(predict(10000) / 10) + '/km') +
+      stat('Half', fmtTime(predict(21097)), fmtPace(predict(21097) / 21.097) + '/km') +
+      stat('Marathon', fmtTime(predict(42195)), fmtPace(predict(42195) / 42.195) + '/km');
+
+    // ---- training paces from predicted 5K pace ----
+    var P5 = predict(5000) / 5; // sec/km
+    var paces = {
+      rep: P5 - 20, interval: P5, threshold: P5 + 25, marathon: P5 + 50, easy: P5 + 90, long: P5 + 80
+    };
+    var rows = [
+      ['Easy / recovery', 'Conversational — build your aerobic base', paces.easy],
+      ['Long run', 'Steady, relaxed endurance', paces.long],
+      ['Marathon', 'Goal marathon effort', paces.marathon],
+      ['Threshold / tempo', '"Comfortably hard", ~1-hour race effort', paces.threshold],
+      ['Interval / VO₂max', '3–5 min reps, ~5K effort', paces.interval],
+      ['Reps / speed', 'Short 200–400 m, fast & smooth', paces.rep]
+    ];
+    document.getElementById('rPaces').innerHTML = rows.map(function (r) {
+      return '<tr><td class="r-pace-name">' + r[0] + '<small>' + r[1] + '</small></td>' +
+        '<td class="r-pace-val">' + fmtPace(r[2]) + ' <small>/km</small></td></tr>';
+    }).join('');
+
+    renderPlan({ vol: Math.max(thisWk, lastWk, totalKm / Math.max(1, Math.round((now - startDate(runs[runs.length - 1].start).getTime()) / 864e5 / 7))), paces: paces });
+    renderTips(paces);
+
+    // ---- recent runs ----
+    document.getElementById('rRuns').innerHTML = runs.slice(0, 8).map(function (a) {
+      var km = (a.distance_m / 1000).toFixed(2), pace = fmtPace(a.duration_s / (a.distance_m / 1000));
+      var s = [];
+      s.push('<span><b>' + km + ' km</b></span>');
+      s.push('<span><b>' + pace + '/km</b></span>');
+      s.push('<span>' + fmtDur(a.duration_s) + '</span>');
+      if (a.avg_hr) s.push('<span>♥ ' + Math.round(a.avg_hr) + (a.max_hr ? '/' + Math.round(a.max_hr) : '') + '</span>');
+      return '<li class="r-run"><div class="r-run-emoji">🏃</div><div class="r-run-main">' +
+        '<div class="r-run-name">' + esc(a.name || 'Run') + '</div>' +
+        '<div class="r-run-when">' + fmtWhen(a.start) + '</div>' +
+        '<div class="r-run-stats">' + s.join('') + '</div></div></li>';
+    }).join('');
+  }
+
+  function stat(label, val, sub, cls) {
+    return '<div class="r-stat"><div class="r-stat-label">' + label + '</div>' +
+      '<div class="r-stat-val">' + val + '</div>' +
+      (sub ? '<div class="r-stat-sub ' + (cls || '') + '">' + sub + '</div>' : '') + '</div>';
+  }
+
+  function renderPlan(info) {
+    var el = document.getElementById('rPlan');
+    var P = info && info.paces;
+    var vol = info ? Math.max(8, info.vol || 0) : 20;
+    var easyKm = Math.max(3, Math.round(vol * 0.2));
+    var longKm = Math.max(5, Math.round(vol * 0.33));
+    function p(k) { return P ? fmtPace(P[k]) + '/km' : '—'; }
+    var days = [
+      ['Mon', 'Easy run', 'easy', easyKm + ' km @ ' + p('easy')],
+      ['Tue', 'Intervals', 'hard', 'Warm-up, then 6 × 800 m @ ' + p('interval') + ' (90 s easy jog between), cool-down'],
+      ['Wed', 'Recovery', 'rest', 'Rest, or 20–30 min very easy @ ' + p('easy')],
+      ['Thu', 'Tempo', 'hard', 'Warm-up, then 20 min @ ' + p('threshold') + ', cool-down'],
+      ['Fri', 'Rest', 'rest', 'Full rest or light cross-training / mobility'],
+      ['Sat', 'Long run', 'long', longKm + ' km @ ' + p('long') + ' — keep it relaxed'],
+      ['Sun', 'Easy + strides', 'easy', easyKm + ' km @ ' + p('easy') + ', then 6 × 20 s strides']
+    ];
+    el.innerHTML = days.map(function (d) {
+      return '<li><div class="r-day">' + d[0] + '</div><div class="r-work">' +
+        '<div class="r-work-title">' + d[1] + '<span class="r-tag ' + d[2] + '">' + d[2] + '</span></div>' +
+        '<div class="r-work-detail">' + d[3] + '</div></div></li>';
+    }).join('');
+  }
+
+  function renderTips() {
+    var tips = [
+      ['🟢 Run mostly easy (the 80/20 rule)', 'Elite and recreational runners alike improve most on a big base of easy aerobic running. Aim for ~80% of your weekly time at a conversational pace and only ~20% hard. Going too hard on easy days is the #1 thing that stalls progress.'],
+      ['📏 One long run every week', 'The long run builds endurance, capillaries and mitochondria. Grow it gradually — bump weekly mileage by roughly 10% at a time, and every 4th week cut back to absorb the training.'],
+      ['⚡ One or two quality sessions', 'Add a weekly tempo (threshold) run and/or VO₂max intervals. Threshold work raises the pace you can hold before fatigue; intervals lift your ceiling. Cap it at ~2 hard days a week with easy days between.'],
+      ['🦵 Strides + strength', 'Finish a couple of easy runs with 4–6 × ~20 s relaxed accelerations (strides) to sharpen economy. Lift 2×/week (squats, lunges, calf raises, core) — stronger legs run more efficiently and get injured less.'],
+      ['🔁 Consistency beats intensity', 'Months of steady, mostly-easy running compound far more than the occasional heroic session. Show up often, keep most runs easy, and let fitness build.'],
+      ['😴 Recover on purpose', 'Adaptation happens while you rest. Sleep 7–9 h, keep easy days truly easy, and fuel + hydrate around your harder sessions.'],
+      ['🎯 Get specific before a race', 'In the final 6–8 weeks, shift some quality work toward your goal race pace and distance so your body rehearses exactly what race day demands.']
+    ];
+    document.getElementById('rTips').innerHTML = tips.map(function (t) {
+      return '<li><div class="r-tip-h">' + t[0] + '</div><div class="r-tip-b">' + t[1] + '</div></li>';
+    }).join('');
+  }
+
+  var supa = null;
+  try { supa = window.supabase.createClient(URL, KEY); } catch (e) {}
+  async function load() {
+    if (!supa) { renderTips(); return; }
+    try {
+      var res = await supa.from('app_state').select('data').eq('key', 'garmin').maybeSingle();
+      if (res && res.data && res.data.data) render(res.data.data);
+      else { render({ activities: [] }); }
+    } catch (e) { render({ activities: [] }); }
+  }
+  renderTips();
+  load();
+  if (supa) {
+    try {
+      supa.channel('app_state_garmin_run')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'app_state', filter: 'key=eq.garmin' },
+          function (payload) { if (payload.new && payload.new.data) render(payload.new.data); })
+        .subscribe();
+    } catch (e) {}
+    window.addEventListener('focus', load);
+  }
+})();
+</script>
+</body>
+</html>
