@@ -94,6 +94,27 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-in
 .cl-log-del { border: 0; background: transparent; color: var(--text-tertiary); font-size: 17px; cursor: pointer; opacity: 0.5; padding: 0 2px; }
 .cl-log-del:hover { color: var(--danger); opacity: 1; }
 
+/* goal presets */
+.cl-presets { display: flex; gap: 6px; margin-top: 4px; }
+.cl-preset { flex: 1; padding: 8px 4px; border: 1px solid var(--line); background: rgba(255,255,255,0.03); color: var(--text-secondary); border-radius: 9px; font-family: inherit; font-size: 11px; font-weight: 700; cursor: pointer; text-align: center; transition: all .15s; }
+.cl-preset:hover { background: rgba(255,255,255,0.06); }
+.cl-preset.active { background: rgba(251,122,80,0.15); border-color: rgba(251,122,80,0.45); color: #ffcbb3; }
+.cl-preset small { display: block; font-weight: 600; font-size: 9.5px; color: var(--text-tertiary); margin-top: 2px; font-family: var(--mono); }
+.cl-preset.active small { color: #f4a988; }
+.cl-exercise { font-size: 12px; color: var(--success); font-weight: 600; }
+/* activity tie-in */
+.cl-tiein { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 18px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.06); }
+.cl-tt { background: rgba(255,255,255,0.035); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.cl-tt-l { font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-tertiary); }
+.cl-tt-v { margin-top: 8px; font-size: 20px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; line-height: 1; }
+.cl-tt-v small { font-size: 11px; color: var(--text-tertiary); font-weight: 600; }
+/* week chart */
+.cl-graph-wrap { position: relative; }
+.cl-week-svg { width: 100%; height: auto; display: block; overflow: visible; touch-action: none; }
+.cl-week-axis { display: flex; justify-content: space-between; margin-top: 5px; font-family: var(--mono); font-size: 9px; color: var(--text-tertiary); }
+.cl-week-tip { position: absolute; pointer-events: none; display: none; transform: translate(-50%,-100%); background: rgba(12,10,8,0.96); border: 1px solid rgba(251,122,80,0.25); border-radius: 9px; padding: 6px 9px; font-size: 11.5px; color: var(--text-primary); white-space: nowrap; z-index: 6; box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
+.cl-week-tip b { color: var(--cal); }
+
 @media (max-width: 480px) { body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; } .cl-card { padding: 16px; } .cl-ring-wrap { width: 132px; height: 132px; } .cl-ring-num { font-size: 30px; } }
 </style>
 </head>
@@ -117,10 +138,23 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-in
       <div class="cl-hero-side">
         <div class="cl-heronum"><b id="clEaten">0</b><span>eaten</span></div>
         <div class="cl-heronum"><b id="clGoal">0</b><span>goal</span></div>
-        <button class="cl-goalbtn" id="clGoalBtn" type="button">Edit goal</button>
+        <div class="cl-exercise" id="clExercise" style="display:none"></div>
+        <div class="cl-presets" id="clPresets">
+          <button class="cl-preset" data-preset="lose" type="button">Lose<small id="clLoseK"></small></button>
+          <button class="cl-preset" data-preset="maintain" type="button">Maintain<small id="clMaintK"></small></button>
+          <button class="cl-preset" data-preset="gain" type="button">Gain<small id="clGainK"></small></button>
+        </div>
+        <button class="cl-goalbtn" id="clGoalBtn" type="button">Custom goal…</button>
       </div>
     </div>
     <div class="cl-macros" id="clMacros"></div>
+    <div class="cl-tiein" id="clTiein"></div>
+  </div>
+
+  <div class="section-title">This week</div>
+  <div class="cl-card">
+    <div class="cl-graph-wrap"><svg class="cl-week-svg" id="clWeekSvg" viewBox="0 0 720 200"></svg><div class="cl-week-tip" id="clWeekTip"></div></div>
+    <div class="cl-week-axis" id="clWeekAxis"></div>
   </div>
 
   <div class="section-title">Add food</div>
@@ -186,9 +220,21 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-in
     return { p: p, c: c, f: f };
   }
 
-  var settings = load(SET_KEY, null) || { goal: defaultGoal(), custom: [] };
-  if (!settings.goal) settings.goal = defaultGoal();
+  function maintenanceKcal() { return Math.round(weightKg() * 32 / 10) * 10; }
+  function presetGoal(kind) { var m = maintenanceKcal(); return kind === 'lose' ? m - 500 : kind === 'gain' ? m + 350 : m; }
+
+  // ---- activity tie-in (Garmin steps/active + water) ----
+  var garmin = null;
+  var G_URL = 'https://qolajqziujbfsiguaozo.supabase.co', G_KEY = 'sb_publishable_MJLciRMTTp9K7Qyb_HojdQ_5pqgnX7l';
+  function currentExercise() { return (garmin && garmin.date === todayKey() && garmin.active_calories) ? Math.round(garmin.active_calories) : 0; }
+  function waterToday() { try { var s = JSON.parse(localStorage.getItem('po_water_v1')); if (s && s.logs) return s.logs[todayKey()] || 0; } catch (e) {} return 0; }
+
+  var settings = load(SET_KEY, null) || { goal: maintenanceKcal(), custom: [], preset: 'maintain' };
+  if (!settings.goal) settings.goal = maintenanceKcal();
   if (!settings.custom) settings.custom = [];
+  if (!settings.preset) settings.preset = 'custom';
+  function setPreset(kind) { settings.preset = kind; settings.goal = presetGoal(kind); saveSettings(); render(); }
+  async function loadGarmin() { if (!window.supabase) return; try { var supa = window.supabase.createClient(G_URL, G_KEY); var res = await supa.from('app_state').select('data').eq('key', 'garmin').maybeSingle(); if (res && res.data && res.data.data) { garmin = res.data.data; render(); } } catch (e) {} }
   var logs = load(LOG_KEY, []) || [];
   function saveSettings() { save(SET_KEY, settings); }
   function saveLogs() { save(LOG_KEY, logs); }
@@ -201,15 +247,23 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-in
   function renderRings() {
     var t = totals(), goal = settings.goal, tg = targets(goal);
     document.getElementById('clSub').textContent = 'Daily goal ' + goal + ' kcal · ' + tg.p + 'g protein · ' + tg.c + 'g carbs · ' + tg.f + 'g fat';
-    var eaten = Math.round(t.kcal), remain = goal - eaten, over = remain < 0;
+    var ex = currentExercise(), budget = goal + ex;
+    var eaten = Math.round(t.kcal), remain = budget - eaten, over = remain < 0;
     document.getElementById('clEaten').textContent = eaten;
     document.getElementById('clGoal').textContent = goal;
     document.getElementById('clRemain').textContent = Math.abs(remain);
     document.getElementById('clRemainLbl').textContent = over ? 'kcal over' : 'kcal left';
     var fill = document.getElementById('clRingFill'), R = 53;
     fill.setAttribute('stroke-dasharray', 2 * Math.PI * R);
-    fill.setAttribute('stroke-dashoffset', ringOffset(R, eaten / goal));
-    fill.style.stroke = over ? 'var(--danger)' : (eaten / goal > 0.85 ? 'var(--carb)' : 'var(--cal)');
+    fill.setAttribute('stroke-dashoffset', ringOffset(R, eaten / budget));
+    fill.style.stroke = over ? 'var(--danger)' : (eaten / budget > 0.85 ? 'var(--carb)' : 'var(--cal)');
+    var exEl = document.getElementById('clExercise');
+    if (ex > 0) { exEl.style.display = ''; exEl.innerHTML = '🔥 +' + ex + ' kcal from today’s activity'; } else { exEl.style.display = 'none'; }
+    var maint = maintenanceKcal();
+    document.getElementById('clLoseK').textContent = (maint - 500);
+    document.getElementById('clMaintK').textContent = maint;
+    document.getElementById('clGainK').textContent = (maint + 350);
+    Array.prototype.forEach.call(document.querySelectorAll('.cl-preset'), function (b) { b.classList.toggle('active', settings.preset === b.getAttribute('data-preset')); });
 
     var macros = [
       { l: 'Protein', v: Math.round(t.p), t: tg.p, col: 'var(--pro)' },
@@ -280,18 +334,53 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-in
     var v = prompt('Daily calorie goal (kcal):', settings.goal);
     if (v == null) return;
     var n = parseInt(v, 10);
-    if (n > 0) { settings.goal = n; saveSettings(); render(); }
+    if (n > 0) { settings.goal = n; settings.preset = 'custom'; saveSettings(); render(); }
   }
 
-  function render() { renderRings(); renderLog(); }
+  function renderTiein() {
+    var g = garmin, water = waterToday();
+    var tiles = [
+      ['💧 Water', water ? water + ' <small>drinks</small>' : '—'],
+      ['👟 Steps', (g && g.steps != null) ? Number(g.steps).toLocaleString() : '—'],
+      ['🔥 Active', (g && g.active_calories != null) ? Math.round(g.active_calories) + ' <small>kcal</small>' : '—']
+    ];
+    document.getElementById('clTiein').innerHTML = tiles.map(function (t) { return '<div class="cl-tt"><div class="cl-tt-l">' + t[0] + '</div><div class="cl-tt-v">' + t[1] + '</div></div>'; }).join('');
+  }
+
+  var weekPts = [];
+  function renderWeek() {
+    var goal = settings.goal, days = [];
+    for (var i = 6; i >= 0; i--) { var d = new Date(); d.setDate(d.getDate() - i); var k = dateKey(d); var kcal = logs.filter(function (l) { return l.date === k; }).reduce(function (a, l) { return a + (l.kcal || 0); }, 0); days.push({ d: d, kcal: Math.round(kcal) }); }
+    var W = 720, H = 200, maxV = Math.max(goal * 1.25, 1);
+    days.forEach(function (x) { if (x.kcal > maxV) maxV = x.kcal * 1.1; });
+    var n = days.length, slot = W / n, bw = Math.min(slot * 0.55, 54), goalY = H - (goal / maxV) * H, WD = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+    var bars = ''; weekPts = [];
+    days.forEach(function (x, i) {
+      var cx = (i + 0.5) * slot, h = x.kcal / maxV * H, y = H - h;
+      var col = x.kcal === 0 ? 'rgba(255,255,255,0.08)' : (x.kcal > goal ? '#FF6B6B' : '#FB7A50');
+      bars += '<rect x="' + (cx - bw / 2).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + Math.max(h, 0).toFixed(1) + '" rx="4" fill="' + col + '" opacity="0.9"></rect>';
+      weekPts.push({ x: cx, y: y, kcal: x.kcal });
+    });
+    var goalLine = '<line x1="0" y1="' + goalY.toFixed(1) + '" x2="' + W + '" y2="' + goalY.toFixed(1) + '" stroke="rgba(255,255,255,0.28)" stroke-dasharray="4 4"/><text x="4" y="' + (goalY - 4).toFixed(1) + '" fill="rgba(255,255,255,0.45)" font-size="10" font-family="monospace">goal ' + goal + '</text>';
+    document.getElementById('clWeekSvg').innerHTML = goalLine + bars;
+    document.getElementById('clWeekAxis').innerHTML = days.map(function (x) { return '<span>' + WD[x.d.getDay()] + '</span>'; }).join('');
+    var svg = document.getElementById('clWeekSvg'), tip = document.getElementById('clWeekTip');
+    function move(ev) { var r = svg.getBoundingClientRect(), vx = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left) / r.width * W; var best = weekPts[0]; weekPts.forEach(function (p) { if (Math.abs(p.x - vx) < Math.abs(best.x - vx)) best = p; }); tip.style.display = 'block'; tip.style.left = (best.x / W * r.width) + 'px'; tip.style.top = (best.y / H * r.height - 6) + 'px'; tip.innerHTML = '<b>' + best.kcal + '</b> kcal'; }
+    function leave() { tip.style.display = 'none'; }
+    svg.onmousemove = move; svg.onmouseleave = leave; svg.ontouchstart = function (e) { move(e); e.preventDefault(); }; svg.ontouchmove = function (e) { move(e); e.preventDefault(); }; svg.ontouchend = leave;
+  }
+
+  function render() { renderRings(); renderTiein(); renderWeek(); renderLog(); }
 
   document.getElementById('clSearch').addEventListener('input', function () { renderFoods(this.value); });
   document.getElementById('clcAdd').addEventListener('click', addCustom);
   document.getElementById('clcF').addEventListener('keydown', function (e) { if (e.key === 'Enter') addCustom(); });
   document.getElementById('clGoalBtn').addEventListener('click', editGoal);
+  Array.prototype.forEach.call(document.querySelectorAll('.cl-preset'), function (b) { b.addEventListener('click', function () { setPreset(b.getAttribute('data-preset')); }); });
 
   renderFoods('');
   render();
+  loadGarmin();
   window.addEventListener('focus', render);
 
   document.addEventListener('DOMContentLoaded', function () {
