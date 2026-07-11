@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="lock.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Habits</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+
+<style>
+:root {
+  --text-primary: #FAFAFA; --text-secondary: #B8B6B0; --text-tertiary: #76746E;
+  --success: #6BE3A4; --danger: #FF6B6B; --hb: #F59E0B; --hb-bright: #FBB733;
+  --card: rgba(255,255,255,0.04); --line: rgba(255,255,255,0.06);
+  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: #050506; color: var(--text-secondary); font-family: var(--font); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; -webkit-text-size-adjust: 100%; }
+body { min-height: 100vh; position: relative; overflow-x: hidden; padding: max(28px, env(safe-area-inset-top)) 20px 60px; }
+body::before { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: -2; filter: blur(40px);
+  background: radial-gradient(circle at 84% 10%, rgba(245,158,11,0.14), transparent 42%), radial-gradient(circle at 14% 92%, rgba(180,180,200,0.05), transparent 50%); }
+body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: -1;
+  background-image: radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1px); background-size: 3px 3px; }
+.page { max-width: 720px; margin: 0 auto; }
+
+.dash-title { margin: 0 0 3px; font-size: 28px; font-weight: 700; letter-spacing: -0.025em;
+  background: linear-gradient(180deg,#FFF,#C7C4BC); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+@media (max-width: 480px) { .dash-title { font-size: 22px; } }
+.hb-tagline { margin: 0 0 20px; font-size: 12.5px; color: var(--text-tertiary); }
+
+.hb-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 14px; scrollbar-width: none; }
+.hb-chips::-webkit-scrollbar { display: none; }
+.hb-chip { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 8px; padding: 8px 13px 8px 9px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; cursor: pointer; color: var(--text-secondary); font-family: inherit; font-size: 13px; font-weight: 600; transition: all .15s; white-space: nowrap; -webkit-tap-highlight-color: transparent; }
+.hb-chip:hover { border-color: rgba(255,255,255,0.16); }
+.hb-chip.active { background: rgba(245,158,11,0.13); border-color: rgba(245,158,11,0.4); color: #FBD68B; }
+.hb-chip-ic { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; background: rgba(255,255,255,0.05); font-size: 14px; }
+.hb-chip.active .hb-chip-ic { background: rgba(245,158,11,0.2); }
+.hb-chip-add { color: var(--text-tertiary); font-weight: 700; }
+
+.hb-card { position: relative; background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 20px; margin-bottom: 14px; backdrop-filter: blur(24px) saturate(1.2); -webkit-backdrop-filter: blur(24px) saturate(1.2); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+
+.hb-head { display: flex; align-items: center; gap: 14px; }
+.hb-head-ic { width: 46px; height: 46px; border-radius: 13px; flex: 0 0 auto; display: grid; place-items: center; font-size: 22px; background: rgba(245,158,11,0.13); border: 1px solid rgba(245,158,11,0.22); }
+.hb-head-t { flex: 1; min-width: 0; }
+.hb-head-name { font-size: 17px; font-weight: 700; color: var(--text-primary); outline: none; border-radius: 5px; }
+.hb-head-name[contenteditable="true"] { background: rgba(0,0,0,0.3); outline: 1px solid rgba(245,158,11,0.4); padding: 1px 5px; margin: -1px -5px; }
+.hb-head-desc { font-size: 12.5px; color: var(--text-tertiary); margin-top: 2px; }
+.hb-head-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+.hb-del { border: 1px solid var(--line); background: rgba(255,255,255,0.03); color: var(--text-tertiary); width: 40px; height: 42px; border-radius: 12px; cursor: pointer; font-size: 15px; transition: all .15s; }
+.hb-del:hover { color: var(--danger); border-color: rgba(255,107,107,0.3); }
+.hb-done { border: 0; cursor: pointer; font-family: inherit; font-weight: 700; font-size: 13px; padding: 11px 16px; border-radius: 12px; transition: transform .1s, filter .15s; background: linear-gradient(180deg,var(--hb-bright),var(--hb)); color: #241703; box-shadow: 0 2px 10px rgba(245,158,11,0.25); -webkit-tap-highlight-color: transparent; }
+.hb-done:hover { filter: brightness(1.05); transform: translateY(-1px); }
+.hb-done.is-done { background: rgba(107,227,164,0.14); color: var(--success); box-shadow: none; border: 1px solid rgba(107,227,164,0.3); }
+
+.hb-label { font-size: 10px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-tertiary); }
+.hb-year { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.hb-year-nav { background: rgba(255,255,255,0.05); border: 1px solid var(--line); color: var(--text-secondary); width: 30px; height: 30px; border-radius: 9px; cursor: pointer; font-size: 15px; line-height: 1; }
+.hb-year-nav:hover { background: rgba(255,255,255,0.09); }
+.hb-year-nav:disabled { opacity: 0.35; cursor: default; }
+.hb-year-lbl { font-size: 15px; font-weight: 700; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.hb-heat-scroll { overflow-x: auto; scrollbar-width: none; }
+.hb-heat-scroll::-webkit-scrollbar { display: none; }
+.hb-months { display: flex; margin-bottom: 5px; padding-left: 2px; font-family: var(--mono); font-size: 9.5px; color: var(--text-tertiary); }
+.hb-grid { display: flex; gap: 3px; }
+.hb-wk { display: flex; flex-direction: column; gap: 3px; }
+.hb-cell { width: 12px; height: 12px; border-radius: 3px; background: rgba(255,255,255,0.045); }
+.hb-cell.l1 { background: rgba(245,158,11,0.30); }
+.hb-cell.l2 { background: rgba(245,158,11,0.52); }
+.hb-cell.l3 { background: rgba(245,158,11,0.78); }
+.hb-cell.l4 { background: var(--hb-bright); box-shadow: 0 0 6px rgba(245,158,11,0.5); }
+.hb-cell.future { background: rgba(255,255,255,0.02); }
+.hb-cell[data-k] { cursor: pointer; }
+.hb-legend { display: flex; align-items: center; gap: 6px; justify-content: flex-end; margin-top: 10px; font-family: var(--mono); font-size: 9.5px; color: var(--text-tertiary); }
+.hb-legend .hb-cell { width: 11px; height: 11px; }
+
+.hb-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 520px) { .hb-stats { grid-template-columns: repeat(2, 1fr); } }
+.hb-stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 15px; }
+.hb-stat-top { display: flex; align-items: center; justify-content: flex-end; }
+.hb-stat-ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; background: rgba(245,158,11,0.14); }
+.hb-stat-num { margin-top: 12px; font-size: 30px; font-weight: 700; letter-spacing: -0.03em; color: var(--text-primary); line-height: 1; font-variant-numeric: tabular-nums; }
+.hb-stat-lbl { margin-top: 5px; font-size: 11px; color: var(--text-tertiary); }
+
+.hb-chart-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.hb-chart-title { font-size: 15px; font-weight: 700; color: var(--text-primary); }
+.hb-graph-wrap { position: relative; }
+.hb-svg { width: 100%; height: auto; display: block; overflow: visible; touch-action: none; }
+.hb-axis { display: flex; justify-content: space-between; margin-top: 6px; font-family: var(--mono); font-size: 9.5px; color: var(--text-tertiary); }
+.hb-tip { position: absolute; pointer-events: none; display: none; transform: translate(-50%,-100%); background: rgba(12,10,8,0.96); border: 1px solid rgba(245,158,11,0.25); border-radius: 9px; padding: 7px 10px; font-size: 11.5px; color: var(--text-primary); white-space: nowrap; z-index: 6; box-shadow: 0 6px 20px rgba(0,0,0,0.5); }
+.hb-tip b { color: var(--hb-bright); }
+.hb-tip small { display: block; color: var(--text-tertiary); font-size: 10px; margin-top: 2px; }
+.hb-two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 560px) { .hb-two { grid-template-columns: 1fr; } }
+
+.hb-addrow { display: flex; gap: 8px; flex-wrap: wrap; }
+.hb-input { flex: 1; min-width: 140px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 11px; background: rgba(0,0,0,0.28); color: var(--text-primary); font-family: inherit; font-size: 14px; outline: none; }
+.hb-input:focus { border-color: rgba(245,158,11,0.5); }
+.hb-addbtn { padding: 11px 18px; border: 0; border-radius: 11px; cursor: pointer; font-family: inherit; font-weight: 700; font-size: 13px; background: linear-gradient(180deg,#FFF,#E8E5DD); color: #0A0A0B; }
+.hb-note { margin-top: 12px; font-size: 11.5px; color: var(--text-tertiary); line-height: 1.5; }
+.hb-empty { text-align: center; color: var(--text-tertiary); font-size: 13px; padding: 30px 10px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1 class="dash-title">Habits</h1>
+  <p class="hb-tagline">Build the habits you want to keep — and watch the streaks stack up.</p>
+
+  <div class="hb-chips" id="hbChips"></div>
+
+  <div id="hbBody">
+    <div class="hb-card">
+      <div class="hb-head">
+        <div class="hb-head-ic" id="hbHeadIc">🌱</div>
+        <div class="hb-head-t">
+          <div class="hb-head-name" id="hbHeadName">—</div>
+          <div class="hb-head-desc" id="hbHeadDesc">—</div>
+        </div>
+        <div class="hb-head-actions">
+          <button class="hb-del" id="hbDel" type="button" aria-label="Delete habit">🗑</button>
+          <button class="hb-done" id="hbDone" type="button">Done today</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="hb-card">
+      <div class="hb-year">
+        <button class="hb-year-nav" id="hbPrev" type="button" aria-label="Previous year">‹</button>
+        <span class="hb-year-lbl" id="hbYearLbl">—</span>
+        <button class="hb-year-nav" id="hbNext" type="button" aria-label="Next year">›</button>
+      </div>
+      <div class="hb-heat-scroll">
+        <div class="hb-months" id="hbMonths"></div>
+        <div class="hb-grid" id="hbGrid"></div>
+      </div>
+      <div class="hb-legend">Less
+        <span class="hb-cell"></span><span class="hb-cell l1"></span><span class="hb-cell l2"></span><span class="hb-cell l3"></span><span class="hb-cell l4"></span>
+        More</div>
+    </div>
+
+    <div class="hb-stats" id="hbStats"></div>
+
+    <div class="hb-card" style="margin-top:14px">
+      <div class="hb-chart-head"><span class="hb-chart-title">Completions / month</span><span class="hb-label" id="hbMonthYr">—</span></div>
+      <div class="hb-graph-wrap"><svg class="hb-svg" id="hbMonthSvg" viewBox="0 0 720 220"></svg><div class="hb-tip" id="hbMonthTip"></div></div>
+      <div class="hb-axis" id="hbMonthAxis"></div>
+    </div>
+
+    <div class="hb-two">
+      <div class="hb-card">
+        <div class="hb-chart-head"><span class="hb-chart-title">Time of day</span></div>
+        <div class="hb-graph-wrap"><svg class="hb-svg" id="hbTimeSvg" viewBox="0 0 340 160"></svg><div class="hb-tip" id="hbTimeTip"></div></div>
+        <div class="hb-axis"><span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>12a</span></div>
+      </div>
+      <div class="hb-card">
+        <div class="hb-chart-head"><span class="hb-chart-title">Add a habit</span></div>
+        <div class="hb-addrow">
+          <input class="hb-input" id="hbNew" type="text" placeholder="e.g. Read 10 pages" autocomplete="off">
+          <button class="hb-addbtn" id="hbAdd" type="button">Add</button>
+        </div>
+        <p class="hb-note">Tap a habit above to switch, hit <b>Done today</b> to log it (tap again to add another for the day), and tap the name to rename. Everything saves here and syncs to your other devices.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var STORE = 'habits:v1';
+  var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var EMOJI = ['🌱','🧘','📖','💧','🥶','💪','🧴','🧠','🎯','🎸','✍️','🚶'];
+
+  function key(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+  function todayKey() { return key(new Date()); }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function starter() {
+    return {
+      habits: [
+        { id: 'h_stretch', name: 'Stretch 5 min', desc: 'Improve flexibility and relax muscles', emoji: '🧘' },
+        { id: 'h_read', name: 'Read 10 pages', desc: 'A little every day beats a lot sometimes', emoji: '📖' },
+        { id: 'h_water', name: 'Drink 2L water', desc: 'Stay hydrated', emoji: '💧' }
+      ],
+      comps: {}
+    };
+  }
+  function load() { try { var v = JSON.parse(localStorage.getItem(STORE)); return (v && Array.isArray(v.habits)) ? v : null; } catch (e) { return null; } }
+  var db = load() || starter();
+  var state = { sel: db.habits[0] ? db.habits[0].id : null, year: new Date().getFullYear() };
+  function save() { try { localStorage.setItem(STORE, JSON.stringify(db)); } catch (e) {} }
+  function comps(id) { return db.comps[id] || (db.comps[id] = []); }
+  function selHabit() { return db.habits.filter(function (h) { return h.id === state.sel; })[0]; }
+  function countMap(id) { var m = {}; comps(id).forEach(function (c) { m[c.date] = (m[c.date] || 0) + 1; }); return m; }
+  function level(n) { return !n ? '' : n >= 4 ? 'l4' : n >= 3 ? 'l3' : n >= 2 ? 'l2' : 'l1'; }
+
+  // ---------- chips ----------
+  function renderChips() {
+    var el = document.getElementById('hbChips');
+    el.innerHTML = db.habits.map(function (h) {
+      return '<button class="hb-chip' + (h.id === state.sel ? ' active' : '') + '" data-id="' + h.id + '"><span class="hb-chip-ic">' + h.emoji + '</span>' + esc(h.name) + '</button>';
+    }).join('') + '<button class="hb-chip hb-chip-add" id="hbFocusAdd"><span class="hb-chip-ic">＋</span>New</button>';
+    Array.prototype.forEach.call(el.querySelectorAll('.hb-chip[data-id]'), function (b) {
+      b.onclick = function () { state.sel = b.getAttribute('data-id'); renderAll(); };
+    });
+    document.getElementById('hbFocusAdd').onclick = function () { document.getElementById('hbNew').focus(); };
+  }
+
+  // ---------- header ----------
+  function renderHead() {
+    var h = selHabit(); if (!h) return;
+    document.getElementById('hbHeadIc').textContent = h.emoji;
+    var nameEl = document.getElementById('hbHeadName');
+    nameEl.textContent = h.name;
+    nameEl.setAttribute('contenteditable', 'true');
+    nameEl.onblur = function () { var t = nameEl.textContent.trim(); if (t && t !== h.name) { h.name = t; save(); renderChips(); } else { nameEl.textContent = h.name; } };
+    nameEl.onkeydown = function (e) { if (e.key === 'Enter') { e.preventDefault(); nameEl.blur(); } };
+    document.getElementById('hbHeadDesc').textContent = h.desc || '';
+    var done = countMap(h.id)[todayKey()] > 0;
+    var btn = document.getElementById('hbDone');
+    btn.className = 'hb-done' + (done ? ' is-done' : '');
+    btn.textContent = done ? '✓ Done today' : 'Done today';
+    btn.onclick = function () { comps(h.id).push({ date: todayKey(), hour: new Date().getHours() }); save(); renderAll(); };
+    document.getElementById('hbDel').onclick = function () {
+      if (!confirm('Delete "' + h.name + '" and its history?')) return;
+      db.habits = db.habits.filter(function (x) { return x.id !== h.id; });
+      delete db.comps[h.id];
+      state.sel = db.habits[0] ? db.habits[0].id : null;
+      save(); renderAll();
+    };
+  }
+
+  // ---------- heatmap ----------
+  function renderHeat() {
+    document.getElementById('hbYearLbl').textContent = state.year;
+    var h = selHabit(); if (!h) return;
+    var cm = countMap(h.id), now = new Date(), thisYear = now.getFullYear();
+    var last = new Date(state.year, 11, 31);
+    var start = new Date(state.year, 0, 1); start.setDate(start.getDate() - start.getDay());
+    var weeks = [], monthCol = {}, col = 0;
+    for (var d = new Date(start); d <= last;) {
+      var week = [];
+      for (var i = 0; i < 7; i++) {
+        var inYear = d.getFullYear() === state.year, future = d > now, k = key(d);
+        if (inYear && d.getDate() === 1) monthCol[d.getMonth()] = col;
+        week.push({ inYear: inYear, future: future, n: cm[k] || 0, k: k });
+        d.setDate(d.getDate() + 1);
+      }
+      weeks.push(week); col++;
+    }
+    document.getElementById('hbGrid').innerHTML = weeks.map(function (wk) {
+      return '<div class="hb-wk">' + wk.map(function (c) {
+        if (!c.inYear) return '<span class="hb-cell" style="visibility:hidden"></span>';
+        if (c.future) return '<span class="hb-cell future"></span>';
+        return '<span class="hb-cell ' + level(c.n) + '" data-k="' + c.k + '" title="' + c.k + ' · ' + c.n + '×"></span>';
+      }).join('') + '</div>';
+    }).join('');
+    var cw = 15, months = document.getElementById('hbMonths');
+    months.innerHTML = ''; months.style.position = 'relative'; months.style.height = '12px'; months.style.width = (weeks.length * cw) + 'px';
+    for (var m = 0; m < 12; m++) if (monthCol[m] != null) { var s = document.createElement('span'); s.textContent = MON[m]; s.style.position = 'absolute'; s.style.left = (monthCol[m] * cw) + 'px'; months.appendChild(s); }
+    document.getElementById('hbNext').disabled = state.year >= thisYear;
+    document.getElementById('hbPrev').disabled = state.year <= thisYear - 5;
+  }
+
+  // ---------- stats ----------
+  function streaks(id) {
+    var days = {}; comps(id).forEach(function (c) { days[c.date] = 1; });
+    var keys = Object.keys(days).sort();
+    var best = 0, run = 0, prev = null;
+    keys.forEach(function (k) { var d = new Date(k + 'T00:00:00'); if (prev && (d - prev) === 86400000) run++; else run = 1; best = Math.max(best, run); prev = d; });
+    var cur = 0, e = new Date(); if (!days[key(e)]) e.setDate(e.getDate() - 1);
+    while (days[key(e)]) { cur++; e.setDate(e.getDate() - 1); }
+    return { best: best, cur: cur };
+  }
+  function renderStats() {
+    var h = selHabit(); if (!h) return;
+    var s = streaks(h.id);
+    var yc = comps(h.id).filter(function (c) { return c.date.slice(0, 4) == state.year; }).length;
+    var doneDays = {}; comps(h.id).forEach(function (c) { if (c.date.slice(0, 4) == state.year) doneDays[c.date] = 1; });
+    var now = new Date();
+    var endOfSpan = (state.year === now.getFullYear()) ? now : new Date(state.year, 11, 31);
+    var elapsed = Math.max(1, Math.round((endOfSpan - new Date(state.year, 0, 1)) / 86400000) + 1);
+    var rate = Math.round(Object.keys(doneDays).length / elapsed * 100);
+    var tiles = [['#', yc, 'Completions'], ['🔥', s.cur, 'Day streak'], ['🏆', s.best, 'Best streak'], ['◎', rate + '%', 'Consistency']];
+    document.getElementById('hbStats').innerHTML = tiles.map(function (t) {
+      return '<div class="hb-stat"><div class="hb-stat-top"><span class="hb-stat-ic">' + t[0] + '</span></div><div class="hb-stat-num">' + t[1] + '</div><div class="hb-stat-lbl">' + t[2] + '</div></div>';
+    }).join('');
+  }
+
+  // ---------- monthly chart ----------
+  function renderMonth() {
+    document.getElementById('hbMonthYr').textContent = state.year;
+    var h = selHabit(); if (!h) return;
+    var by = new Array(12).fill(0);
+    comps(h.id).forEach(function (c) { if (c.date.slice(0, 4) == state.year) by[parseInt(c.date.slice(5, 7), 10) - 1]++; });
+    var now = new Date(), upto = (state.year === now.getFullYear()) ? now.getMonth() : 11;
+    var data = by.slice(0, upto + 1);
+    var W = 720, H = 220, pad = 14, maxV = Math.max(4, Math.max.apply(null, data));
+    function X(i) { return data.length <= 1 ? W / 2 : pad + i / (data.length - 1) * (W - 2 * pad); }
+    function Y(v) { return H - 12 - v / maxV * (H - 30); }
+    var pts = data.map(function (v, i) { return { x: X(i), y: Y(v), v: v, m: i }; });
+    var line = pts.map(function (p, i) { return (i ? 'L' : 'M') + p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ');
+    var area = line + ' L' + X(data.length - 1).toFixed(1) + ',' + H + ' L' + X(0).toFixed(1) + ',' + H + ' Z';
+    var grid = ''; for (var g = 0; g <= 3; g++) { var gy = 12 + g / 3 * (H - 30); grid += '<line x1="0" y1="' + gy + '" x2="' + W + '" y2="' + gy + '" stroke="rgba(255,255,255,0.05)"/>'; }
+    var dots = pts.map(function (p) { return '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3" fill="#0a0a0b" stroke="#F59E0B" stroke-width="2"/>'; }).join('');
+    var end = pts[pts.length - 1] || { x: 0, y: 0 };
+    document.getElementById('hbMonthSvg').innerHTML = grid +
+      '<path d="' + area + '" fill="rgba(245,158,11,0.14)"/>' +
+      '<path d="' + line + '" fill="none" stroke="#F59E0B" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" style="filter:drop-shadow(0 0 5px rgba(245,158,11,0.45))"/>' +
+      dots + '<circle cx="' + end.x.toFixed(1) + '" cy="' + end.y.toFixed(1) + '" r="5" fill="#FBB733"/>' +
+      '<circle id="hbMHi" r="7" fill="none" stroke="#fff" stroke-width="2" style="display:none"/>';
+    document.getElementById('hbMonthAxis').innerHTML = data.map(function (v, i) { return '<span>' + MON[i] + '</span>'; }).join('');
+    hoverLine('hbMonthSvg', 'hbMonthTip', 'hbMHi', pts, W, H, function (p) { return '<b>' + p.v + '</b> completions<small>' + MON[p.m] + ' ' + state.year + '</small>'; });
+  }
+
+  // ---------- time-of-day ----------
+  function renderTime() {
+    var h = selHabit(); if (!h) return;
+    var buckets = new Array(24).fill(0);
+    comps(h.id).forEach(function (c) { if (c.hour != null) buckets[c.hour] = (buckets[c.hour] || 0) + 1; });
+    var sm = buckets.map(function (v, i) { return (buckets[(i + 23) % 24] + 2 * v + buckets[(i + 1) % 24]) / 4; });
+    var W = 340, H = 160, pad = 6, maxV = Math.max(1, Math.max.apply(null, sm));
+    function X(i) { return pad + i / 23 * (W - 2 * pad); }
+    function Y(v) { return H - 10 - v / maxV * (H - 22); }
+    var pts = sm.map(function (v, i) { return { x: X(i), y: Y(v), v: buckets[i], h: i }; });
+    var line = pts.map(function (p, i) { return (i ? 'L' : 'M') + p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ');
+    var area = line + ' L' + X(23).toFixed(1) + ',' + H + ' L' + X(0).toFixed(1) + ',' + H + ' Z';
+    document.getElementById('hbTimeSvg').innerHTML =
+      '<path d="' + area + '" fill="rgba(245,158,11,0.13)"/>' +
+      '<path d="' + line + '" fill="none" stroke="#F59E0B" stroke-width="2.2" stroke-linejoin="round" style="filter:drop-shadow(0 0 4px rgba(245,158,11,0.4))"/>' +
+      '<circle id="hbTHi" r="6" fill="none" stroke="#fff" stroke-width="2" style="display:none"/>';
+    hoverLine('hbTimeSvg', 'hbTimeTip', 'hbTHi', pts, W, H, function (p) { var ap = p.h < 12 ? 'am' : 'pm', h12 = p.h % 12 || 12; return '<b>' + p.v + '×</b> around ' + h12 + ap; });
+  }
+
+  // ---------- shared hover ----------
+  function hoverLine(svgId, tipId, hiId, pts, W, H, fmt) {
+    var svg = document.getElementById(svgId), tip = document.getElementById(tipId);
+    function move(ev) {
+      var hi = document.getElementById(hiId); if (!hi) return;
+      var r = svg.getBoundingClientRect(), cx = (ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left, vx = cx / r.width * W;
+      var best = pts[0]; if (!best) return; pts.forEach(function (p) { if (Math.abs(p.x - vx) < Math.abs(best.x - vx)) best = p; });
+      hi.setAttribute('cx', best.x); hi.setAttribute('cy', best.y); hi.style.display = '';
+      tip.style.display = 'block'; tip.style.left = (best.x / W * r.width) + 'px'; tip.style.top = (best.y / H * r.height - 6) + 'px';
+      tip.innerHTML = fmt(best);
+    }
+    function leave() { tip.style.display = 'none'; var hi = document.getElementById(hiId); if (hi) hi.style.display = 'none'; }
+    svg.onmousemove = move; svg.onmouseleave = leave;
+    svg.ontouchstart = function (e) { move(e); e.preventDefault(); };
+    svg.ontouchmove = function (e) { move(e); e.preventDefault(); };
+    svg.ontouchend = leave;
+  }
+
+  function addHabit() {
+    var v = document.getElementById('hbNew').value.trim(); if (!v) return;
+    var id = 'h' + Date.now();
+    db.habits.push({ id: id, name: v, desc: 'A new habit you\'re building', emoji: EMOJI[db.habits.length % EMOJI.length] });
+    document.getElementById('hbNew').value = '';
+    state.sel = id; save(); renderAll();
+  }
+
+  function renderAll() {
+    renderChips();
+    if (!selHabit()) {
+      document.getElementById('hbBody').innerHTML = '<div class="hb-card"><div class="hb-empty">No habits yet. Add one below to start building your streaks.<div class="hb-addrow" style="max-width:340px;margin:18px auto 0"><input class="hb-input" id="hbNew" type="text" placeholder="e.g. Read 10 pages" autocomplete="off"><button class="hb-addbtn" id="hbAdd" type="button">Add</button></div></div></div>';
+      document.getElementById('hbAdd').onclick = addHabit;
+      document.getElementById('hbNew').addEventListener('keydown', function (e) { if (e.key === 'Enter') addHabit(); });
+      return;
+    }
+    renderHead(); renderHeat(); renderStats(); renderMonth(); renderTime();
+  }
+
+  document.getElementById('hbAdd').onclick = addHabit;
+  document.getElementById('hbNew').addEventListener('keydown', function (e) { if (e.key === 'Enter') addHabit(); });
+  document.getElementById('hbPrev').onclick = function () { state.year--; renderHeat(); renderStats(); renderMonth(); };
+  document.getElementById('hbNext').onclick = function () { if (state.year < new Date().getFullYear()) { state.year++; renderHeat(); renderStats(); renderMonth(); } };
+  renderAll();
+
+  // ---------- cloud sync ----------
+  document.addEventListener('DOMContentLoaded', function () {
+    if (typeof initCloudSync !== 'function') return;
+    initCloudSync({
+      appKey: 'habits',
+      syncedKeys: ['habits:v1'],
+      onApplied: function () { var v = load(); if (v) { db = v; if (!selHabit()) state.sel = db.habits[0] ? db.habits[0].id : null; renderAll(); } }
+    });
+  });
+})();
+</script>
+</body>
+</html>
