@@ -127,15 +127,36 @@ main {
 .hsleep-legend { display: flex; gap: 14px; margin-top: 8px; flex-wrap: wrap; font-size: 10.5px; color: var(--text-secondary); }
 .hsleep-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .hsleep-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
-/* sleep debt */
-.hsleep-debt { margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.06); }
-.hsleep-debt-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+/* sleep debt (detailed: actual vs 8h goal) */
+.hsleep-debt { margin-top: 22px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.06); }
+.hsleep-debt-head { margin-bottom: 8px; }
 .hsleep-debt-t { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-tertiary); }
-.hsleep-debt-val { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.hsleep-debt-bars { display: flex; gap: 6px; align-items: flex-end; height: 64px; }
-.hsleep-debt-bar { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; }
-.hsleep-debt-fill { width: 100%; border-radius: 5px 5px 3px 3px; min-height: 4px; }
-.hsleep-debt-day { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.06em; color: var(--text-tertiary); text-transform: uppercase; }
+.hsleep-debt-sum { font-size: 12.5px; color: var(--text-secondary); line-height: 1.55; margin-bottom: 18px; }
+.hsleep-debt-sum b { color: var(--text-primary); font-weight: 700; }
+.hsleep-debt-chart { position: relative; display: flex; gap: 8px; height: 118px; margin-bottom: 8px; }
+.hsleep-goal-line { position: absolute; left: 0; right: 0; border-top: 1px dashed rgba(255,255,255,0.32); z-index: 2; pointer-events: none; }
+.hsleep-goal-line span { position: absolute; right: 2px; top: -13px; font-family: var(--font-mono); font-size: 9px; color: var(--text-tertiary); }
+.hsleep-dbar-track { flex: 1; position: relative; max-width: 44px; margin: 0 auto; width: 100%; background: rgba(255,255,255,0.045); border-radius: 6px; overflow: hidden; }
+.hsleep-dbar-fill { position: absolute; left: 0; right: 0; bottom: 0; }
+.hsleep-dbar-missing { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(45deg, rgba(255,138,138,0.32), rgba(255,138,138,0.32) 4px, rgba(255,138,138,0.09) 4px, rgba(255,138,138,0.09) 8px); }
+.hsleep-debt-labels { display: flex; gap: 8px; }
+.hsleep-dlabel { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.hsleep-dlabel-day { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-tertiary); }
+.hsleep-dlabel-h { font-family: var(--font-mono); font-size: 11px; color: var(--text-primary); font-weight: 700; }
+.hsleep-dlabel-d { font-family: var(--font-mono); font-size: 9.5px; font-weight: 700; white-space: nowrap; }
+/* sleep coach */
+.hsleep-coach-now { background: rgba(125,211,252,0.06); border: 1px solid rgba(125,211,252,0.16); border-radius: 12px; padding: 14px 16px; }
+.hsleep-coach-now-l { font-size: 9.5px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: #7DD3FC; margin-bottom: 6px; }
+.hsleep-coach-now-b { font-size: 13.5px; color: var(--text-primary); line-height: 1.55; }
+.hsleep-coach-now-b b { color: #bfe6ff; }
+.hsleep-coach-ins { list-style: none; margin: 16px 0 0; padding: 0; }
+.hsleep-coach-ins li { padding: 11px 0; border-top: 1px solid rgba(255,255,255,0.06); font-size: 12.5px; color: var(--text-secondary); line-height: 1.5; }
+.hsleep-coach-ins li:first-child { border-top: 0; }
+.hsleep-coach-ins b { color: var(--text-primary); }
+.hsleep-coach-h { margin-top: 18px; font-size: 10.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-tertiary); }
+.hsleep-coach-habits { list-style: none; margin: 10px 0 0; padding: 0; }
+.hsleep-coach-habits li { position: relative; padding: 7px 0 7px 24px; font-size: 12.5px; color: var(--text-secondary); line-height: 1.45; }
+.hsleep-coach-habits li::before { content: '🌙'; position: absolute; left: 0; top: 6px; font-size: 11px; }
 .hsleep-empty { color: var(--text-tertiary); font-size: 12px; font-style: italic; text-align: center; padding: 22px 0; }
 @media (max-width: 480px) { .hsleep-ring-wrap { width: 108px; height: 108px; } .hsleep-ring-num { font-size: 28px; } }
 .water-embed { margin-top: 56px; }
@@ -572,6 +593,10 @@ main {
     <div class="hsleep-card" id="hsleepCard">
       <div class="hsleep-empty">Loading sleep from Garmin…</div>
     </div>
+    <div class="section-title" style="margin-top:34px">Sleep Coach</div>
+    <div class="hsleep-card" id="hsleepCoach">
+      <div class="hsleep-empty">Personalising your sleep advice…</div>
+    </div>
   </section>
 
   <section id="water" class="water-embed">
@@ -596,6 +621,8 @@ main {
   function weekday(iso) { var p = (iso || '').split('-'); if (p.length < 3) return ''; return WD[new Date(+p[0], +p[1] - 1, +p[2]).getDay()]; }
   function hms(sec) { sec = Math.round(sec || 0); var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60); return h + 'h ' + String(m).padStart(2, '0') + 'm'; }
   function hoursHM(h) { if (h == null) return '—'; var hr = Math.floor(h), m = Math.round((h - hr) * 60); if (m === 60) { m = 0; hr++; } return hr + 'h ' + String(m).padStart(2, '0') + 'm'; }
+  function hmShort(h) { var t = Math.round(Math.abs(h) * 60), hr = Math.floor(t / 60), m = t % 60; if (hr && m) return hr + 'h ' + m + 'm'; if (hr) return hr + 'h'; return m + 'm'; }
+  function fmtClock(h) { h = ((h % 24) + 24) % 24; var hr = Math.floor(h), m = Math.round((h - hr) * 60); if (m === 60) { m = 0; hr = (hr + 1) % 24; } var ap = hr < 12 ? 'AM' : 'PM', h12 = hr % 12 || 12; return h12 + ':' + String(m).padStart(2, '0') + ' ' + ap; }
   function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
   function quality(h, score) { var v = (score != null) ? score : (h / GOAL * 100); return v >= 80 ? '#6BE3A4' : (v >= 60 ? '#F2C063' : '#FF6B6B'); }
   function scoreColor(v) { return v >= 80 ? '#6BE3A4' : (v >= 60 ? '#F2C063' : '#FF6B6B'); }
@@ -608,7 +635,11 @@ main {
   function render(d) {
     var card = document.getElementById('hsleepCard');
     var hist = (d && Array.isArray(d.sleep_history)) ? d.sleep_history.filter(function (s) { return s && s.hours; }) : [];
-    if (!hist.length) { card.innerHTML = '<div class="hsleep-empty">No sleep data yet — it syncs from Garmin each day.</div>'; return; }
+    if (!hist.length) {
+      card.innerHTML = '<div class="hsleep-empty">No sleep data yet — it syncs from Garmin each day.</div>';
+      var cc = document.getElementById('hsleepCoach'); if (cc) cc.innerHTML = '<div class="hsleep-empty">Sleep advice appears once Garmin has synced a night.</div>';
+      return;
+    }
     var n = hist.length;
     var avg = (hist.reduce(function (a, s) { return a + s.hours; }, 0) / n).toFixed(1);
 
@@ -660,23 +691,79 @@ main {
         '<span><i style="background:#67C8E8"></i>Light ' + hms(light) + '</span></div>';
     }
 
-    // ---- sleep debt (last 7 nights vs GOAL) ----
+    // ---- sleep debt: each night's actual vs the 8h goal ----
     var last7 = hist.slice(-7);
-    var totalDebt = last7.reduce(function (a, s) { return a + Math.max(0, GOAL - s.hours); }, 0);
-    var maxDef = 3;
-    var debtBars = last7.map(function (s) {
-      var def = Math.max(0, GOAL - s.hours);
-      var pct = clamp(def / maxDef, 0, 1) * 100;
-      var col = def <= 0.25 ? '#6BE3A4' : def < 1.25 ? '#F2C063' : '#FF6B6B';
-      return '<div class="hsleep-debt-bar"><div class="hsleep-debt-fill" style="height:' + Math.max(pct, 5) + '%;background:' + col + ';opacity:' + (def <= 0.25 ? 0.5 : 0.85) + '" title="' + shortDate(s.date) + ': ' + s.hours + 'h"></div><div class="hsleep-debt-day">' + weekday(s.date) + '</div></div>';
+    var slept = last7.reduce(function (a, s) { return a + s.hours; }, 0);
+    var needed = last7.length * GOAL;
+    var net = slept - needed; // negative = debt
+    var dMaxH = 10;
+    var tracks = last7.map(function (s) {
+      var actPct = clamp(s.hours / dMaxH, 0, 1) * 100;
+      var def = GOAL - s.hours;
+      var missing = def > 0.05 ? '<div class="hsleep-dbar-missing" style="bottom:' + actPct + '%;height:' + (def / dMaxH * 100).toFixed(1) + '%"></div>' : '';
+      return '<div class="hsleep-dbar-track"><div class="hsleep-dbar-fill" style="height:' + actPct.toFixed(1) + '%;background:' + quality(s.hours, s.score) + ';opacity:0.92"></div>' + missing + '</div>';
     }).join('');
-    var debtStr = totalDebt < 0.1 ? 'On track ✓' : '-' + hoursHM(totalDebt);
-    var debt = '<div class="hsleep-debt"><div class="hsleep-debt-head"><span class="hsleep-debt-t">Sleep debt</span>' +
-      '<span class="hsleep-debt-val" style="color:' + (totalDebt < 0.1 ? '#6BE3A4' : '#FF8A8A') + '">' + debtStr + ' <span style="color:var(--text-tertiary);font-weight:400;font-size:11px">last ' + last7.length + ' nights</span></span></div>' +
-      '<div class="hsleep-debt-bars">' + debtBars + '</div></div>';
+    var labels = last7.map(function (s) {
+      var def = GOAL - s.hours;
+      var delta = Math.abs(def) < 0.08 ? '✓' : (def > 0 ? '-' + hmShort(def) : '+' + hmShort(-def));
+      var dcol = Math.abs(def) < 0.08 ? '#6BE3A4' : (def > 0 ? '#FF8A8A' : '#6BE3A4');
+      return '<div class="hsleep-dlabel"><span class="hsleep-dlabel-day">' + weekday(s.date) + '</span><span class="hsleep-dlabel-h">' + s.hours + 'h</span><span class="hsleep-dlabel-d" style="color:' + dcol + '">' + delta + '</span></div>';
+    }).join('');
+    var sumStr = 'Over the last <b>' + last7.length + ' nights</b> you slept <b>' + hmShort(slept) + '</b> of the <b>' + needed + 'h</b> you needed — ' +
+      (net < -0.1 ? 'a <b style="color:#FF8A8A">' + hmShort(-net) + ' sleep debt</b>. The red hatching shows the hours you missed each night.'
+        : net > 0.1 ? '<b style="color:#6BE3A4">' + hmShort(net) + ' to spare</b> — nicely rested.'
+          : '<b style="color:#6BE3A4">right on your goal</b>.');
+    var debt = '<div class="hsleep-debt"><div class="hsleep-debt-head"><span class="hsleep-debt-t">Sleep debt · your hours vs the 8h goal</span></div>' +
+      '<div class="hsleep-debt-sum">' + sumStr + '</div>' +
+      '<div class="hsleep-debt-chart"><div class="hsleep-goal-line" style="bottom:' + (GOAL / dMaxH * 100) + '%"><span>8h goal</span></div>' + tracks + '</div>' +
+      '<div class="hsleep-debt-labels">' + labels + '</div></div>';
 
     card.innerHTML = '<div class="hsleep-top">' + ring + trend + '</div>' + cardsHtml + stages + debt;
     attachHover();
+    renderCoach(d, last7);
+  }
+
+  function renderCoach(d, last7) {
+    var el = document.getElementById('hsleepCoach');
+    if (!el) return;
+    var wake = (typeof d.wake_hour === 'number') ? d.wake_hour : 5.5;
+    var targetBed = wake - GOAL; // to bank a full 8h before waking
+    var now = new Date(), nh = now.getHours() + now.getMinutes() / 60;
+    var toBed = (((targetBed % 24) - nh) % 24 + 24) % 24;
+
+    var nowTip;
+    if (nh >= 18 || toBed <= 3) {
+      nowTip = 'Wind-down time. Dim the lights, put screens away, and skip late caffeine, alcohol and heavy meals. Aim to be <b>asleep by ' + fmtClock(targetBed) + '</b> to bank a full 8 hours before your ' + fmtClock(wake) + ' wake-up.';
+    } else if (nh < 11) {
+      nowTip = 'Set up tonight this morning: grab <b>10 minutes of daylight</b> soon after waking, move your body, and enjoy coffee <b>before ~1 PM</b>. Skip long naps so you\'re sleepy tonight.';
+    } else {
+      nowTip = 'Protect tonight now: make this your <b>last coffee window</b> (caffeine lingers ~5 h), train earlier rather than late, and start dimming lights after dinner. Target lights-out <b>' + fmtClock(targetBed) + '</b>.';
+    }
+
+    var ins = [];
+    var debt7 = (last7 || []).reduce(function (a, s) { return a + Math.max(0, GOAL - s.hours); }, 0);
+    if (debt7 > 2) ins.push(['Clear your sleep debt', 'You\'re down about <b>' + hmShort(debt7) + '</b> over the week. An extra 30–60 min tonight (an earlier bedtime beats sleeping in) helps you recover it.']);
+    if (d.sleep_efficiency != null && d.sleep_efficiency < 85) ins.push(['Restless night', 'Efficiency was ' + d.sleep_efficiency + '% (asleep vs. time in bed). A steady schedule and a cool, dark, quiet room lift this the most.']);
+    var deepPct = (d.deep_sleep_seconds && d.sleep_seconds) ? d.deep_sleep_seconds / d.sleep_seconds * 100 : null;
+    if (deepPct != null && deepPct < 15) ins.push(['Low deep sleep', 'Only ' + Math.round(deepPct) + '% deep sleep last night. Avoid alcohol and late heavy meals, keep the room ~18°C, and get daytime exercise — all boost deep sleep.']);
+    if (typeof d.bedtime_hour === 'number' && d.bedtime_hour < 24 && d.bedtime_hour > ((targetBed % 24) + 24) % 24 + 0.5) {
+      ins.push(['Earlier bedtime', 'You fell asleep around ' + fmtClock(d.bedtime_hour) + '. Shifting roughly ' + Math.round((d.bedtime_hour - (((targetBed % 24) + 24) % 24)) * 60) + ' min earlier would hit your 8-hour target.']);
+    }
+    if (d.sleep_score != null && d.sleep_score < 70) ins.push(['Bounce back tonight', 'Last night scored ' + d.sleep_score + '. Prioritise a calm, screen-free wind-down and a consistent bedtime to recover.']);
+    if (!ins.length) ins.push(['Keep it up', 'Your recent sleep looks solid — hold your routine steady, especially your bed and wake times.']);
+
+    var habits = [
+      'Keep the <b>same bed &amp; wake time every day</b> — even weekends. Consistency is the single biggest lever.',
+      'No caffeine after your early-afternoon cutoff — it hangs around for ~5 hours.',
+      'Cool (~18°C), dark and quiet room; screens off 30–60 min before bed.',
+      'Get morning daylight and move during the day to anchor your body clock.',
+      'Wind down with something calm — stretch, read or breathe — instead of scrolling.'
+    ];
+
+    el.innerHTML = '<div class="hsleep-coach-now"><div class="hsleep-coach-now-l">What to do right now</div><div class="hsleep-coach-now-b">' + nowTip + '</div></div>' +
+      '<ul class="hsleep-coach-ins">' + ins.map(function (i) { return '<li><b>' + i[0] + '</b> — ' + i[1] + '</li>'; }).join('') + '</ul>' +
+      '<div class="hsleep-coach-h">Habits that move the needle</div>' +
+      '<ul class="hsleep-coach-habits">' + habits.map(function (h) { return '<li>' + h + '</li>'; }).join('') + '</ul>';
   }
 
   function attachHover() {
