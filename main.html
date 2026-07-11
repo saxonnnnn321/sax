@@ -692,6 +692,64 @@ body::after {
     </div>
   </div>
 
+  <!-- ===== Calendar (upcoming plans) ===== -->
+  <style>
+  .cal-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .cal-nav { display: flex; align-items: center; gap: 8px; }
+  .cal-navbtn { width: 30px; height: 30px; border-radius: 9px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04); color: var(--text-secondary); cursor: pointer; font-size: 15px; line-height: 1; }
+  .cal-navbtn:hover { background: rgba(255,255,255,0.08); }
+  .cal-title { font-size: 14px; font-weight: 700; color: var(--text-primary); min-width: 128px; text-align: center; }
+  .cal-today-btn { font-size: 11px; font-weight: 700; color: var(--text-tertiary); background: transparent; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; padding: 6px 11px; cursor: pointer; }
+  .cal-today-btn:hover { color: var(--text-secondary); background: rgba(255,255,255,0.05); }
+  .cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 6px; }
+  .cal-weekdays span { text-align: center; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.06em; color: var(--text-tertiary); }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .cal-cell { position: relative; aspect-ratio: 1 / 1; border-radius: 9px; border: 1px solid transparent; background: rgba(255,255,255,0.03); cursor: pointer; padding: 5px 0 0; display: flex; flex-direction: column; align-items: center; gap: 2px; font-family: inherit; -webkit-tap-highlight-color: transparent; transition: background .12s, border-color .12s; }
+  .cal-cell:hover { background: rgba(255,255,255,0.07); }
+  .cal-cell.out { opacity: 0.32; }
+  .cal-cell.today { border-color: rgba(107,227,164,0.5); }
+  .cal-cell.sel { background: rgba(242,192,99,0.15); border-color: rgba(242,192,99,0.45); }
+  .cal-num { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .cal-cell.today .cal-num { color: var(--success); }
+  .cal-dots { display: flex; gap: 2px; align-items: center; justify-content: center; }
+  .cal-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--warning); }
+  .cal-more { font-size: 8px; color: var(--text-tertiary); line-height: 1; }
+  .cal-day { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06); }
+  .cal-day-head { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 10px; }
+  .cal-events { list-style: none; margin: 0 0 12px; padding: 0; }
+  .cal-events li { display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-bottom: 6px; background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; }
+  .cal-ev-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--warning); flex-shrink: 0; }
+  .cal-ev-title { flex: 1; font-size: 13.5px; color: var(--text-primary); }
+  .cal-ev-del { border: 0; background: transparent; color: var(--text-tertiary); font-size: 17px; line-height: 1; cursor: pointer; opacity: 0.55; padding: 0 2px; }
+  .cal-ev-del:hover { color: var(--danger); opacity: 1; }
+  .cal-empty { font-size: 12px; font-style: italic; color: var(--text-tertiary); padding: 2px 0 12px; }
+  .cal-add { display: flex; gap: 8px; }
+  .cal-add input { flex: 1; min-width: 0; padding: 10px 13px; border: 1px solid rgba(255,255,255,0.08); border-radius: 11px; background: rgba(0,0,0,0.28); color: var(--text-primary); font-family: inherit; font-size: 14px; outline: none; }
+  .cal-add input:focus { border-color: rgba(242,192,99,0.5); }
+  .cal-add button { padding: 10px 16px; border: 0; border-radius: 11px; background: linear-gradient(180deg,#FFF,#E8E5DD); color: #0A0A0B; font-family: inherit; font-weight: 700; font-size: 13px; cursor: pointer; white-space: nowrap; }
+  </style>
+  <div class="gm-card cal-card">
+    <div class="cal-top">
+      <div class="gm-eyebrow">Calendar · what's coming up</div>
+      <div class="cal-nav">
+        <button class="cal-navbtn" id="calPrev" type="button" aria-label="Previous month">‹</button>
+        <span class="cal-title" id="calTitle">—</span>
+        <button class="cal-navbtn" id="calNext" type="button" aria-label="Next month">›</button>
+        <button class="cal-today-btn" id="calToday" type="button">Today</button>
+      </div>
+    </div>
+    <div class="cal-weekdays"><span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span></div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="cal-day">
+      <div class="cal-day-head" id="calDayHead">—</div>
+      <ul class="cal-events" id="calEvents"></ul>
+      <div class="cal-add">
+        <input id="calInput" type="text" placeholder="Add an event or reminder…" autocomplete="off">
+        <button id="calAddBtn" type="button">+ Add</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -1314,12 +1372,96 @@ body::after {
     initCloudSync({
       appKey: 'goals',
       syncedPrefixes: ['goals:'],
+      syncedKeys: ['cal:events'],
       onApplied: function () {
         window.dispatchEvent(new CustomEvent('goals-changed'));
         window.dispatchEvent(new Event('storage'));
       }
     });
   });
+  </script>
+
+  <script>
+  /* ===== Calendar: add events for upcoming weeks/months. Syncs via 'cal:events'. ===== */
+  (function () {
+    'use strict';
+    var KEY = 'cal:events';
+    var MON = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    var WD = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    function pad(n) { return String(n).padStart(2, '0'); }
+    function keyOf(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+    function load() { try { var v = JSON.parse(localStorage.getItem(KEY)); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+    function save() { try { localStorage.setItem(KEY, JSON.stringify(events)); } catch (e) {} }
+    function esc(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    var events = load();
+    var now = new Date();
+    var view = { y: now.getFullYear(), m: now.getMonth() };
+    var sel = keyOf(now);
+
+    function byDate() { var m = {}; events.forEach(function (e) { if (e && e.date) { (m[e.date] = m[e.date] || []).push(e); } }); return m; }
+
+    function renderGrid() {
+      var map = byDate();
+      document.getElementById('calTitle').textContent = MON[view.m] + ' ' + view.y;
+      var first = new Date(view.y, view.m, 1);
+      var start = new Date(first); start.setDate(1 - first.getDay());
+      var todayK = keyOf(new Date());
+      var html = '';
+      for (var i = 0; i < 42; i++) {
+        var d = new Date(start); d.setDate(start.getDate() + i);
+        var k = keyOf(d), out = d.getMonth() !== view.m, evs = map[k] || [];
+        var cls = 'cal-cell' + (out ? ' out' : '') + (k === todayK ? ' today' : '') + (k === sel ? ' sel' : '');
+        var dots = '';
+        if (evs.length) {
+          var nd = Math.min(evs.length, 3), s = '';
+          for (var j = 0; j < nd; j++) s += '<span class="cal-dot"></span>';
+          dots = '<div class="cal-dots">' + s + (evs.length > 3 ? '<span class="cal-more">+' + (evs.length - 3) + '</span>' : '') + '</div>';
+        }
+        html += '<button class="' + cls + '" data-k="' + k + '" type="button"><span class="cal-num">' + d.getDate() + '</span>' + dots + '</button>';
+      }
+      var grid = document.getElementById('calGrid');
+      grid.innerHTML = html;
+      Array.prototype.forEach.call(grid.querySelectorAll('.cal-cell'), function (b) {
+        b.onclick = function () {
+          var k = b.getAttribute('data-k'), p = k.split('-');
+          sel = k;
+          if ((+p[1] - 1) !== view.m || (+p[0]) !== view.y) { view.y = +p[0]; view.m = +p[1] - 1; }
+          renderGrid(); renderDay();
+        };
+      });
+    }
+
+    function renderDay() {
+      var map = byDate(), evs = map[sel] || [];
+      var p = sel.split('-'), d = new Date(+p[0], +p[1] - 1, +p[2]);
+      document.getElementById('calDayHead').textContent = WD[d.getDay()] + ', ' + MON[d.getMonth()].slice(0, 3) + ' ' + d.getDate();
+      var ul = document.getElementById('calEvents');
+      if (!evs.length) { ul.innerHTML = '<div class="cal-empty">Nothing scheduled — add an event or reminder below.</div>'; return; }
+      ul.innerHTML = evs.map(function (e) {
+        return '<li><span class="cal-ev-dot"></span><span class="cal-ev-title">' + esc(e.title) + '</span><button class="cal-ev-del" data-id="' + e.id + '" type="button" aria-label="Delete">×</button></li>';
+      }).join('');
+      Array.prototype.forEach.call(ul.querySelectorAll('.cal-ev-del'), function (b) {
+        b.onclick = function () { var id = b.getAttribute('data-id'); events = events.filter(function (e) { return e.id !== id; }); save(); renderGrid(); renderDay(); };
+      });
+    }
+
+    function add() {
+      var inp = document.getElementById('calInput'), t = inp.value.trim();
+      if (!t) return;
+      events.push({ id: 'e' + Date.now() + '_' + Math.floor(Math.random() * 999), date: sel, title: t });
+      inp.value = ''; save(); renderGrid(); renderDay();
+    }
+
+    document.getElementById('calPrev').onclick = function () { view.m--; if (view.m < 0) { view.m = 11; view.y--; } renderGrid(); };
+    document.getElementById('calNext').onclick = function () { view.m++; if (view.m > 11) { view.m = 0; view.y++; } renderGrid(); };
+    document.getElementById('calToday').onclick = function () { var n = new Date(); view.y = n.getFullYear(); view.m = n.getMonth(); sel = keyOf(n); renderGrid(); renderDay(); };
+    document.getElementById('calAddBtn').onclick = add;
+    document.getElementById('calInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') add(); });
+    window.addEventListener('storage', function () { events = load(); renderGrid(); renderDay(); });
+
+    renderGrid(); renderDay();
+  })();
   </script>
 </body>
 </html>
