@@ -574,15 +574,20 @@ body::after {
     if (!list.length) return null;
     var earliest = Infinity;
     list.forEach(function (l) { earliest = Math.min(earliest, hourOfISO(l.time)); });
-    var peakMg = 0, peakT = earliest;
-    for (var t = earliest; t <= 44; t += 1 / 12) { var a = activeAt(t); if (a > peakMg) { peakMg = a; peakT = t; } }
-    if (peakMg < 5) return null;
-    var half = null, clear = null;
-    for (var t2 = peakT; t2 <= 48; t2 += 1 / 12) {
-      var a2 = activeAt(t2);
-      if (half === null && a2 <= peakMg * 0.5) half = t2;
-      if (a2 < 20) { clear = t2; break; } // "out of your system" ≈ under 20 mg
+    // Absolute thresholds so timing scales with how much you drink:
+    //   WEAROFF_MG ≈ below a real stimulant dose ("wears off")
+    //   CLEAR_MG   ≈ negligible ("out of your system")
+    var WEAROFF_MG = 40, CLEAR_MG = 15;
+    var peakMg = 0, peakT = earliest, lastWear = null, lastClear = null;
+    for (var t = earliest; t <= 48; t += 1 / 12) {
+      var a = activeAt(t);
+      if (a > peakMg) { peakMg = a; peakT = t; }
+      if (a >= WEAROFF_MG) lastWear = t;   // last moment still above stimulant level
+      if (a >= CLEAR_MG) lastClear = t;    // last moment still meaningfully present
     }
+    if (peakMg < 5) return null;
+    var half = (peakMg >= WEAROFF_MG && lastWear != null) ? lastWear + 1 / 12 : null;
+    var clear = (lastClear != null) ? lastClear + 1 / 12 : null;
     return { peakMg: peakMg, peakT: peakT, half: half, clear: clear, nowMg: activeAt(nowHour()) };
   }
 
@@ -606,7 +611,7 @@ body::after {
     var ct = caffeineTiming();
     if (ct && ct.half != null) {
       document.getElementById('cafCrashTime').textContent = fmtHourDay(ct.half);
-      document.getElementById('cafCrashSub').textContent = 'Lift halves here (peak ' + Math.round(ct.peakMg) + ' mg) · out of system by ' + fmtHourDay(ct.clear);
+      document.getElementById('cafCrashSub').textContent = 'Wears off here (peak ' + Math.round(ct.peakMg) + ' mg) · out of system by ' + fmtHourDay(ct.clear);
     } else {
       document.getElementById('cafCrashTime').textContent = '—';
       document.getElementById('cafCrashSub').textContent = 'Log a drink to see when it wears off';
@@ -620,7 +625,7 @@ body::after {
     tips.push('Front-load your caffeine — aim your biggest cup 30–60 min after waking (~' + fmtHour(ctx.wake + 0.75) + '), not the second you get up.');
     tips.push('Last coffee by <b>' + fmtHour(cut) + '</b> to protect your ' + fmtHour(ctx.bedtime) + ' bedtime.');
     tips.push('Chase every coffee with water — caffeine is mildly dehydrating and dehydration mimics fatigue.');
-    if (ct && ct.half != null) tips.push('Your caffeine lift halves around <b>' + fmtHour(ct.half) + '</b> and is mostly out of your system by <b>' + fmtHourDay(ct.clear) + '</b> — ride the dip with daylight or a walk, not another late cup.');
+    if (ct && ct.half != null) tips.push('Your caffeine wears off around <b>' + fmtHour(ct.half) + '</b> and is mostly out of your system by <b>' + fmtHourDay(ct.clear) + '</b> — ride the dip with daylight or a walk, not another late cup.');
     else tips.push('Get some afternoon daylight to keep your energy steady.');
     if (ctx.recovery != null && ctx.recovery < 50) tips.push('Recovery is low (' + Math.round(ctx.recovery) + '%) — go easy on caffeine today; your ceiling is trimmed below.');
     var ul = document.getElementById('cafTips');
