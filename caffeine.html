@@ -370,7 +370,7 @@ body::after {
   function dateKey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   function todayKey() { return dateKey(new Date()); }
   function todaysLogs() { var k = todayKey(); return (logs || []).filter(function (l) { return l && l.time && dateKey(new Date(l.time)) === k; }); }
-  function nowHour() { var d = new Date(); return d.getHours() + d.getMinutes() / 60; }
+  function nowHour() { var d = new Date(); return d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600; }
   function fmtHour(h) {
     h = ((h % 24) + 24) % 24;
     var hr = Math.floor(h), mn = Math.round((h - hr) * 60);
@@ -551,14 +551,17 @@ body::after {
 
   function crashInfo(samples) {
     var nh = nowHour();
-    var window8 = samples.filter(function (s) { return s.t >= nh && s.t <= nh + 8 && s.t < ctx.bedtime; });
-    if (window8.length < 6) return null;
-    var worst = null; // steepest sustained ~90min drop
-    for (var i = 0; i + 9 < window8.length; i++) {
-      var drop = window8[i].e - window8[i + 9].e; // 90 min later
-      if (!worst || drop > worst.drop) worst = { start: window8[i].t, drop: drop, to: window8[i + 9].e, toT: window8[i + 9].t };
+    // Look across the rest of your waking day for the steepest ~2-hour slide.
+    var rest = samples.filter(function (s) { return s.t >= nh - 0.05 && s.t < ctx.bedtime; });
+    if (rest.length < 6) return null;
+    var win = 12; // ~2 hours (12 x 10-min samples)
+    var worst = null;
+    for (var i = 0; i < rest.length - 1; i++) {
+      var j = Math.min(i + win, rest.length - 1);
+      var drop = rest[i].e - rest[j].e;
+      if (!worst || drop > worst.drop) worst = { start: rest[i].t, drop: drop, to: rest[j].e, toT: rest[j].t };
     }
-    if (!worst || worst.drop < 12) return null; // only if significant
+    if (!worst || worst.drop < 8) return null; // only surface a meaningful dip
     return worst;
   }
 
@@ -588,7 +591,7 @@ body::after {
       document.getElementById('cafCrashSub').textContent = 'Dips to ' + Math.round(cr.to) + '/100 by ' + fmtHour(cr.toT);
     } else {
       document.getElementById('cafCrashTime').textContent = 'Steady';
-      document.getElementById('cafCrashSub').textContent = 'No big crash in the next 8h';
+      document.getElementById('cafCrashSub').textContent = 'No sharp crash expected — nicely steady';
     }
     var cut = coffeeCutoffHour();
     document.getElementById('cafCutoffTime').textContent = fmtHour(cut);
