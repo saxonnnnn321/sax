@@ -206,8 +206,8 @@ body::after {
 
       <div class="caf-band">
         <div><span>Peak focus</span><b id="cafPeakWin">—</b></div>
-        <div><span>Predicted crash</span><b id="cafCrash">—</b></div>
-        <div><span>Last coffee by</span><b id="cafCutoff">—</b></div>
+        <div><span>Comedown</span><b id="cafCrash">—</b></div>
+        <div><span>Out of system</span><b id="cafCutoff">—</b></div>
       </div>
     </div>
   </div>
@@ -223,7 +223,7 @@ body::after {
           <div class="caf-tile-sub" id="cafProdSub">—</div>
         </div>
         <div class="caf-tile">
-          <div class="caf-tile-label">You'll crash</div>
+          <div class="caf-tile-label">Caffeine comedown</div>
           <div class="caf-tile-big" id="cafCrashTime">—</div>
           <div class="caf-tile-sub" id="cafCrashSub">—</div>
         </div>
@@ -567,6 +567,24 @@ body::after {
 
   // ---------------- render: your day + timing + today ----------------
   function coffeeCutoffHour() { return ctx.bedtime - 5 * Math.log2(95 / 30); } // ~8.31h before bed
+  function fmtHourDay(h) { return (h == null) ? '—' : (fmtHour(h) + (h >= 24 ? ' tmrw' : '')); }
+  // Caffeine-driven timing from your actual logs — recomputes every time you drink.
+  function caffeineTiming() {
+    var list = todaysLogs();
+    if (!list.length) return null;
+    var earliest = Infinity;
+    list.forEach(function (l) { earliest = Math.min(earliest, hourOfISO(l.time)); });
+    var peakMg = 0, peakT = earliest;
+    for (var t = earliest; t <= 44; t += 1 / 12) { var a = activeAt(t); if (a > peakMg) { peakMg = a; peakT = t; } }
+    if (peakMg < 5) return null;
+    var half = null, clear = null;
+    for (var t2 = peakT; t2 <= 48; t2 += 1 / 12) {
+      var a2 = activeAt(t2);
+      if (half === null && a2 <= peakMg * 0.5) half = t2;
+      if (a2 < 20) { clear = t2; break; } // "out of your system" ≈ under 20 mg
+    }
+    return { peakMg: peakMg, peakT: peakT, half: half, clear: clear, nowMg: activeAt(nowHour()) };
+  }
 
   function renderDay(samples) {
     renderCurve(samples);
@@ -574,9 +592,9 @@ body::after {
 
     var pk = peakInfo(samples);
     document.getElementById('cafPeakWin').textContent = pk ? (fmtHour(pk.lo) + ' – ' + fmtHour(pk.hi)) : '—';
-    var cr = crashInfo(samples);
-    document.getElementById('cafCrash').textContent = cr ? (fmtHour(cr.start) + ' (↓' + Math.round(cr.drop) + ')') : 'None expected';
-    document.getElementById('cafCutoff').textContent = fmtHour(coffeeCutoffHour());
+    var ct = caffeineTiming();
+    document.getElementById('cafCrash').textContent = (ct && ct.half != null) ? fmtHourDay(ct.half) : '—';
+    document.getElementById('cafCutoff').textContent = (ct && ct.clear != null) ? fmtHourDay(ct.clear) : '—';
   }
 
   function renderTiming(samples) {
@@ -585,13 +603,13 @@ body::after {
       document.getElementById('cafProdTime').textContent = fmtHour(pk.time);
       document.getElementById('cafProdSub').textContent = 'Window ' + fmtHourShort(pk.lo) + '–' + fmtHourShort(pk.hi) + ' · ' + Math.round(pk.score) + '/100';
     }
-    var cr = crashInfo(samples);
-    if (cr) {
-      document.getElementById('cafCrashTime').textContent = fmtHour(cr.start);
-      document.getElementById('cafCrashSub').textContent = 'Dips to ' + Math.round(cr.to) + '/100 by ' + fmtHour(cr.toT);
+    var ct = caffeineTiming();
+    if (ct && ct.half != null) {
+      document.getElementById('cafCrashTime').textContent = fmtHourDay(ct.half);
+      document.getElementById('cafCrashSub').textContent = 'Lift halves here (peak ' + Math.round(ct.peakMg) + ' mg) · out of system by ' + fmtHourDay(ct.clear);
     } else {
-      document.getElementById('cafCrashTime').textContent = 'Steady';
-      document.getElementById('cafCrashSub').textContent = 'No sharp crash expected — nicely steady';
+      document.getElementById('cafCrashTime').textContent = '—';
+      document.getElementById('cafCrashSub').textContent = 'Log a drink to see when it wears off';
     }
     var cut = coffeeCutoffHour();
     document.getElementById('cafCutoffTime').textContent = fmtHour(cut);
@@ -602,8 +620,8 @@ body::after {
     tips.push('Front-load your caffeine — aim your biggest cup 30–60 min after waking (~' + fmtHour(ctx.wake + 0.75) + '), not the second you get up.');
     tips.push('Last coffee by <b>' + fmtHour(cut) + '</b> to protect your ' + fmtHour(ctx.bedtime) + ' bedtime.');
     tips.push('Chase every coffee with water — caffeine is mildly dehydrating and dehydration mimics fatigue.');
-    if (cr) tips.push('Beat the ' + fmtHour(cr.start) + ' dip with 5–10 min of daylight or a short walk instead of another cup.');
-    else tips.push('Get some daylight in the afternoon to keep your circadian rhythm sharp.');
+    if (ct && ct.half != null) tips.push('Your caffeine lift halves around <b>' + fmtHour(ct.half) + '</b> and is mostly out of your system by <b>' + fmtHourDay(ct.clear) + '</b> — ride the dip with daylight or a walk, not another late cup.');
+    else tips.push('Get some afternoon daylight to keep your energy steady.');
     if (ctx.recovery != null && ctx.recovery < 50) tips.push('Recovery is low (' + Math.round(ctx.recovery) + '%) — go easy on caffeine today; your ceiling is trimmed below.');
     var ul = document.getElementById('cafTips');
     ul.innerHTML = tips.map(function (t) { return '<li>' + t + '</li>'; }).join('');
@@ -634,6 +652,8 @@ body::after {
     if (total > limit) note += 'You\'re over the ceiling — ease off.';
     else if (total > target) note += 'You\'re above your ideal target but under the ceiling.';
     else note += 'You\'re in a good range.';
+    var ctt = caffeineTiming();
+    if (ctt && ctt.nowMg >= 1 && ctt.clear != null) note += ' Right now ~<b>' + Math.round(ctt.nowMg) + ' mg</b> is active; it should be out of your system by <b>' + fmtHourDay(ctt.clear) + '</b>.';
     document.getElementById('cafNote').innerHTML = note;
   }
 
