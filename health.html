@@ -91,19 +91,53 @@ main {
   backdrop-filter: blur(24px) saturate(1.2); -webkit-backdrop-filter: blur(24px) saturate(1.2);
   box-shadow: 0 12px 40px rgba(0,0,0,0.45);
 }
-.hsleep-head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
-.hsleep-big { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; color: var(--text-primary); font-variant-numeric: tabular-nums; }
-.hsleep-big small { font-size: 14px; color: var(--text-tertiary); font-weight: 600; }
-.hsleep-meta { font-size: 12px; color: var(--text-tertiary); }
-.hsleep-meta b { color: var(--text-primary); font-weight: 700; }
-.hsleep-chart { width: 100%; height: auto; display: block; overflow: visible; }
+/* top: score ring + trend line */
+.hsleep-top { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+.hsleep-ring-wrap { position: relative; width: 128px; height: 128px; flex-shrink: 0; }
+.hsleep-ring { width: 100%; height: 100%; transform: rotate(-90deg); display: block; }
+.hsleep-ring-track { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 9; }
+.hsleep-ring-fill { fill: none; stroke-width: 9; stroke-linecap: round; transition: stroke-dashoffset 0.5s ease, stroke 0.4s; }
+.hsleep-ring-ov { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.hsleep-ring-num { font-size: 34px; font-weight: 700; letter-spacing: -0.04em; color: var(--text-primary); line-height: 1; font-variant-numeric: tabular-nums; }
+.hsleep-ring-word { font-size: 9.5px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; margin-top: 4px; }
+.hsleep-trend { flex: 1; min-width: 220px; }
+.hsleep-trend-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+.hsleep-trend-t { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-tertiary); }
+.hsleep-trend-avg { font-size: 12px; color: var(--text-secondary); } .hsleep-trend-avg b { color: var(--text-primary); }
+.hsleep-graph-wrap { position: relative; }
+.hsleep-chart { width: 100%; height: auto; display: block; overflow: visible; touch-action: none; cursor: crosshair; }
+.hsleep-tip {
+  position: absolute; pointer-events: none; display: none; transform: translate(-50%, -100%);
+  background: rgba(10,10,12,0.95); border: 1px solid rgba(255,255,255,0.12); border-radius: 9px;
+  padding: 7px 10px; font-size: 11.5px; color: var(--text-primary); white-space: nowrap; z-index: 5;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+}
+.hsleep-tip b { color: #7DD3FC; } .hsleep-tip small { color: var(--text-tertiary); display: block; margin-top: 2px; font-size: 10px; }
 .hsleep-axis { display: flex; justify-content: space-between; margin-top: 5px; font-family: var(--font-mono); font-size: 9.5px; color: var(--text-tertiary); }
-.hsleep-stages { display: flex; height: 12px; border-radius: 5px; overflow: hidden; background: rgba(255,255,255,0.05); margin-top: 16px; }
+/* stat cards */
+.hsleep-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-top: 20px; }
+.hsleep-stat { background: rgba(255,255,255,0.035); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 13px; }
+.hsleep-stat-l { font-size: 9.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-tertiary); }
+.hsleep-stat-v { margin-top: 7px; font-size: 24px; font-weight: 700; letter-spacing: -0.03em; color: var(--text-primary); line-height: 1; font-variant-numeric: tabular-nums; }
+.hsleep-stat-v small { font-size: 12px; color: var(--text-tertiary); font-weight: 600; letter-spacing: 0; }
+.hsleep-stat-s { margin-top: 5px; font-size: 10.5px; color: var(--text-tertiary); }
+/* stages */
+.hsleep-stages { display: flex; height: 12px; border-radius: 5px; overflow: hidden; background: rgba(255,255,255,0.05); margin-top: 18px; }
 .hsleep-stages > div { height: 100%; }
 .hsleep-legend { display: flex; gap: 14px; margin-top: 8px; flex-wrap: wrap; font-size: 10.5px; color: var(--text-secondary); }
 .hsleep-legend span { display: inline-flex; align-items: center; gap: 5px; }
 .hsleep-legend i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+/* sleep debt */
+.hsleep-debt { margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.06); }
+.hsleep-debt-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+.hsleep-debt-t { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-tertiary); }
+.hsleep-debt-val { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.hsleep-debt-bars { display: flex; gap: 6px; align-items: flex-end; height: 64px; }
+.hsleep-debt-bar { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.hsleep-debt-fill { width: 100%; border-radius: 5px 5px 3px 3px; min-height: 4px; }
+.hsleep-debt-day { font-family: var(--font-mono); font-size: 8.5px; letter-spacing: 0.06em; color: var(--text-tertiary); text-transform: uppercase; }
 .hsleep-empty { color: var(--text-tertiary); font-size: 12px; font-style: italic; text-align: center; padding: 22px 0; }
+@media (max-width: 480px) { .hsleep-ring-wrap { width: 108px; height: 108px; } .hsleep-ring-num { font-size: 28px; } }
 .water-embed { margin-top: 56px; }
 .water-iframe {
   display: block;
@@ -554,31 +588,68 @@ main {
   var URL = 'https://qolajqziujbfsiguaozo.supabase.co';
   var KEY = 'sb_publishable_MJLciRMTTp9K7Qyb_HojdQ_5pqgnX7l';
   var MONS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var WD = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var W = 720, H = 200, maxH = 10, PAD = 16, GOAL = 8;
+  var pts = [];
+
   function shortDate(iso) { var p = (iso || '').split('-'); return p.length < 3 ? iso : (parseInt(p[2], 10) + ' ' + MONS[parseInt(p[1], 10) - 1]); }
+  function weekday(iso) { var p = (iso || '').split('-'); if (p.length < 3) return ''; return WD[new Date(+p[0], +p[1] - 1, +p[2]).getDay()]; }
   function hms(sec) { sec = Math.round(sec || 0); var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60); return h + 'h ' + String(m).padStart(2, '0') + 'm'; }
-  function quality(h, score) {
-    var good = (score != null) ? score >= 80 : h >= 7.5;
-    var mid = (score != null) ? score >= 65 : h >= 6.5;
-    return good ? '#6BE3A4' : (mid ? '#F2C063' : '#FF6B6B');
-  }
+  function hoursHM(h) { if (h == null) return '—'; var hr = Math.floor(h), m = Math.round((h - hr) * 60); if (m === 60) { m = 0; hr++; } return hr + 'h ' + String(m).padStart(2, '0') + 'm'; }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function quality(h, score) { var v = (score != null) ? score : (h / GOAL * 100); return v >= 80 ? '#6BE3A4' : (v >= 60 ? '#F2C063' : '#FF6B6B'); }
+  function scoreColor(v) { return v >= 80 ? '#6BE3A4' : (v >= 60 ? '#F2C063' : '#FF6B6B'); }
+  function scoreWord(v) { return v == null ? '—' : (v >= 85 ? 'Excellent' : v >= 75 ? 'Good' : v >= 60 ? 'Fair' : 'Poor'); }
+  function X(i, n) { return n <= 1 ? W / 2 : PAD + i / (n - 1) * (W - 2 * PAD); }
+  function Y(h) { return H - clamp(h, 0, maxH) / maxH * (H - 16) - 8; }
+
+  function statCard(l, v, s) { return '<div class="hsleep-stat"><div class="hsleep-stat-l">' + l + '</div><div class="hsleep-stat-v">' + v + '</div>' + (s ? '<div class="hsleep-stat-s">' + s + '</div>' : '') + '</div>'; }
+
   function render(d) {
     var card = document.getElementById('hsleepCard');
     var hist = (d && Array.isArray(d.sleep_history)) ? d.sleep_history.filter(function (s) { return s && s.hours; }) : [];
     if (!hist.length) { card.innerHTML = '<div class="hsleep-empty">No sleep data yet — it syncs from Garmin each day.</div>'; return; }
-    var W = 720, H = 200, maxH = 10, n = hist.length, slot = W / n, bw = Math.min(slot * 0.6, 44);
+    var n = hist.length;
     var avg = (hist.reduce(function (a, s) { return a + s.hours; }, 0) / n).toFixed(1);
-    var bars = hist.map(function (s, i) {
-      var x = (i + 0.5) * slot, h = Math.min(s.hours, maxH) / maxH * H, y = H - h;
-      return '<rect x="' + (x - bw / 2).toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="3" fill="' + quality(s.hours, s.score) + '" opacity="0.9">' +
-        '<title>' + shortDate(s.date) + ': ' + s.hours + 'h' + (s.score != null ? ' · score ' + s.score : '') + '</title></rect>';
-    }).join('');
-    var ty = H - (8 / maxH * H);
-    var target = '<line x1="0" y1="' + ty + '" x2="' + W + '" y2="' + ty + '" stroke="rgba(255,255,255,0.22)" stroke-dasharray="4 4"/>' +
-      '<text x="3" y="' + (ty - 4) + '" fill="rgba(255,255,255,0.4)" font-size="10" font-family="monospace">8h goal</text>';
-    var head = '<div class="hsleep-head"><div class="hsleep-big">' + d.sleep_hours + ' <small>h last night</small></div>' +
-      '<div class="hsleep-meta">' + (d.sleep_score != null ? 'Score <b>' + d.sleep_score + '</b> · ' : '') + n + '-night avg <b>' + avg + 'h</b></div></div>';
+
+    // ---- ring (last night score) ----
+    var ringVal = (d.sleep_score != null) ? d.sleep_score : clamp(d.sleep_hours / GOAL * 100, 0, 100);
+    var C = 2 * Math.PI * 54;
+    var ring = '<div class="hsleep-ring-wrap"><svg class="hsleep-ring" viewBox="0 0 120 120">' +
+      '<circle class="hsleep-ring-track" cx="60" cy="60" r="54"></circle>' +
+      '<circle class="hsleep-ring-fill" cx="60" cy="60" r="54" stroke="' + scoreColor(ringVal) + '" stroke-dasharray="' + C + '" stroke-dashoffset="' + (C * (1 - ringVal / 100)) + '"></circle></svg>' +
+      '<div class="hsleep-ring-ov"><div class="hsleep-ring-num">' + (d.sleep_score != null ? d.sleep_score : hoursHM(d.sleep_hours)) + '</div>' +
+      '<div class="hsleep-ring-word" style="color:' + scoreColor(ringVal) + '">' + (d.sleep_score != null ? scoreWord(ringVal) : 'last night') + '</div></div></div>';
+
+    // ---- trend line ----
+    pts = hist.map(function (s, i) { return { x: X(i, n), y: Y(s.hours), s: s }; });
+    var line = pts.map(function (p, i) { return (i ? 'L' : 'M') + p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ');
+    var area = line + ' L' + X(n - 1, n).toFixed(1) + ',' + H + ' L' + X(0, n).toFixed(1) + ',' + H + ' Z';
+    var gy = Y(GOAL);
+    var dots = pts.map(function (p) { return '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="3.5" fill="' + quality(p.s.hours, p.s.score) + '"/>'; }).join('');
+    var svg = '<svg class="hsleep-chart" id="hsleepSvg" viewBox="0 0 ' + W + ' ' + H + '">' +
+      '<line x1="0" y1="' + gy + '" x2="' + W + '" y2="' + gy + '" stroke="rgba(255,255,255,0.18)" stroke-dasharray="4 4"/>' +
+      '<text x="3" y="' + (gy - 4) + '" fill="rgba(255,255,255,0.4)" font-size="10" font-family="monospace">' + GOAL + 'h</text>' +
+      '<path d="' + area + '" fill="rgba(107,227,164,0.09)"/>' +
+      '<path d="' + line + '" fill="none" stroke="#6BE3A4" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" style="filter:drop-shadow(0 0 5px rgba(107,227,164,0.5))"/>' +
+      dots + '<circle id="hsleepHi" r="6" fill="none" stroke="#FFFFFF" stroke-width="2" style="display:none"/></svg>';
+    var trend = '<div class="hsleep-trend"><div class="hsleep-trend-head"><span class="hsleep-trend-t">' + n + '-night sleep</span>' +
+      '<span class="hsleep-trend-avg">avg <b>' + avg + 'h</b></span></div>' +
+      '<div class="hsleep-graph-wrap">' + svg + '<div class="hsleep-tip" id="hsleepTip"></div></div>' +
+      '<div class="hsleep-axis"><span>' + shortDate(hist[0].date) + '</span><span>' + shortDate(hist[n - 1].date) + '</span></div></div>';
+
+    // ---- stat cards ----
+    var cards = [];
+    cards.push(statCard('Sleep', hoursHM(d.sleep_hours), (d.sleep_efficiency != null ? d.sleep_efficiency + '% efficiency' : 'last night')));
+    cards.push(statCard('Score', (d.sleep_score != null ? d.sleep_score : '—'), scoreWord(ringVal)));
+    if (d.resting_hr != null) cards.push(statCard('Resting HR', d.resting_hr + ' <small>bpm</small>', 'overnight'));
+    if (d.hrv_last_night != null) cards.push(statCard('HRV', d.hrv_last_night + ' <small>ms</small>', (d.hrv_weekly_avg != null ? 'wk avg ' + d.hrv_weekly_avg : 'rmssd')));
+    else if (d.deep_sleep_seconds != null) cards.push(statCard('Deep sleep', hms(d.deep_sleep_seconds), 'last night'));
+    var cardsHtml = '<div class="hsleep-cards">' + cards.join('') + '</div>';
+
+    // ---- stages ----
     var stages = '';
-    if (d.sleep_seconds) {
+    if (d.sleep_seconds && (d.deep_sleep_seconds != null || d.light_sleep_seconds != null)) {
       var deep = d.deep_sleep_seconds || 0, rem = d.rem_sleep_seconds || 0, light = d.light_sleep_seconds || 0, tot = deep + rem + light || d.sleep_seconds;
       stages = '<div class="hsleep-stages">' +
         '<div style="width:' + (deep / tot * 100) + '%;background:#5B7CFA"></div>' +
@@ -588,11 +659,50 @@ main {
         '<span><i style="background:#A78BFA"></i>REM ' + hms(rem) + '</span>' +
         '<span><i style="background:#67C8E8"></i>Light ' + hms(light) + '</span></div>';
     }
-    card.innerHTML = head +
-      '<svg class="hsleep-chart" viewBox="0 0 ' + W + ' ' + H + '">' + target + bars + '</svg>' +
-      '<div class="hsleep-axis"><span>' + shortDate(hist[0].date) + '</span><span>' + shortDate(hist[hist.length - 1].date) + '</span></div>' +
-      stages;
+
+    // ---- sleep debt (last 7 nights vs GOAL) ----
+    var last7 = hist.slice(-7);
+    var totalDebt = last7.reduce(function (a, s) { return a + Math.max(0, GOAL - s.hours); }, 0);
+    var maxDef = 3;
+    var debtBars = last7.map(function (s) {
+      var def = Math.max(0, GOAL - s.hours);
+      var pct = clamp(def / maxDef, 0, 1) * 100;
+      var col = def <= 0.25 ? '#6BE3A4' : def < 1.25 ? '#F2C063' : '#FF6B6B';
+      return '<div class="hsleep-debt-bar"><div class="hsleep-debt-fill" style="height:' + Math.max(pct, 5) + '%;background:' + col + ';opacity:' + (def <= 0.25 ? 0.5 : 0.85) + '" title="' + shortDate(s.date) + ': ' + s.hours + 'h"></div><div class="hsleep-debt-day">' + weekday(s.date) + '</div></div>';
+    }).join('');
+    var debtStr = totalDebt < 0.1 ? 'On track ✓' : '-' + hoursHM(totalDebt);
+    var debt = '<div class="hsleep-debt"><div class="hsleep-debt-head"><span class="hsleep-debt-t">Sleep debt</span>' +
+      '<span class="hsleep-debt-val" style="color:' + (totalDebt < 0.1 ? '#6BE3A4' : '#FF8A8A') + '">' + debtStr + ' <span style="color:var(--text-tertiary);font-weight:400;font-size:11px">last ' + last7.length + ' nights</span></span></div>' +
+      '<div class="hsleep-debt-bars">' + debtBars + '</div></div>';
+
+    card.innerHTML = '<div class="hsleep-top">' + ring + trend + '</div>' + cardsHtml + stages + debt;
+    attachHover();
   }
+
+  function attachHover() {
+    var svg = document.getElementById('hsleepSvg'), tip = document.getElementById('hsleepTip'), hi = document.getElementById('hsleepHi');
+    if (!svg) return;
+    function move(ev) {
+      var rect = svg.getBoundingClientRect();
+      var cx = (ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left;
+      var vx = cx / rect.width * W;
+      var best = pts[0], bi = 0;
+      for (var i = 0; i < pts.length; i++) { if (Math.abs(pts[i].x - vx) < Math.abs(best.x - vx)) { best = pts[i]; bi = i; } }
+      hi.setAttribute('cx', best.x); hi.setAttribute('cy', best.y); hi.style.display = '';
+      tip.style.display = 'block';
+      tip.style.left = (best.x / W * rect.width) + 'px';
+      tip.style.top = (best.y / H * rect.height - 8) + 'px';
+      tip.innerHTML = '<b>' + best.s.hours + ' h</b>' + (best.s.score != null ? ' · score ' + best.s.score : '') +
+        '<small>' + shortDate(best.s.date) + (best.s.efficiency != null ? ' · ' + best.s.efficiency + '% eff' : '') + '</small>';
+    }
+    function leave() { tip.style.display = 'none'; hi.style.display = 'none'; }
+    svg.addEventListener('mousemove', move);
+    svg.addEventListener('mouseleave', leave);
+    svg.addEventListener('touchstart', function (e) { move(e); e.preventDefault(); }, { passive: false });
+    svg.addEventListener('touchmove', function (e) { move(e); e.preventDefault(); }, { passive: false });
+    svg.addEventListener('touchend', leave);
+  }
+
   async function load() {
     if (!window.supabase) return;
     try {
