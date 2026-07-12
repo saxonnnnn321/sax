@@ -1871,6 +1871,39 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 </div>
 
 <!-- ===== BOTTOM TAB BAR ===== -->
+<!-- ===== SPENDING ===== -->
+<div class="section" data-section="spend" hidden>
+  <div class="section-title">
+    <span class="section-title-text">SPENDING</span>
+  </div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:14px">
+      <div>
+        <div style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.04em;font-weight:500">Spent this month</div>
+        <div id="spendTotal" style="font-size:28px;font-weight:700;color:var(--text-primary);line-height:1.1;margin-top:2px">AUD 0</div>
+        <div id="spendCount" style="font-size:11px;color:var(--text-tertiary);margin-top:2px"></div>
+      </div>
+    </div>
+    <div class="quick-add" style="flex-wrap:wrap;gap:6px">
+      <input type="text" placeholder="What did you buy? (e.g. Groceries)" id="spendName" style="flex:1.5;min-width:120px" />
+      <input type="number" placeholder="Amount" id="spendAmount" step="0.01" style="flex:1;max-width:100px" />
+      <select id="spendCurrency" style="padding:6px 10px;border:0.5px solid var(--border);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary);max-width:90px">
+        <option value="AUD">AUD</option>
+        <option value="CHF">CHF</option>
+        <option value="USD">USD</option>
+        <option value="EUR">EUR</option>
+        <option value="GBP">GBP</option>
+      </select>
+      <select id="spendCat" style="padding:6px 10px;border:0.5px solid var(--border);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary);min-width:120px"></select>
+      <select id="spendFromCat" title="Which account to deduct from" style="padding:6px 10px;border:0.5px solid var(--border);border-radius:var(--radius-md);font-size:12px;font-family:inherit;background:var(--bg-card);color:var(--text-primary);min-width:140px"><option value="">Don't deduct</option></select>
+      <label class="date-field" title="Purchase date" style="min-width:150px"><span class="date-emoji" aria-hidden="true">📅</span><input type="date" id="spendDate" /></label>
+      <button class="quick-add-btn" id="spendAddBtn" onclick="window.__addSpend && window.__addSpend()">+ Add</button>
+    </div>
+    <div id="spendList" style="margin-top:12px"></div>
+    <div class="empty-state" id="spendEmpty">Nothing logged this month yet</div>
+  </div>
+</div>
+
 <nav class="bottom-tabs" id="bottomTabs" aria-label="Sections">
   <button class="bot-tab active" data-tab="net">
     <span class="bot-tab-icon">📊</span>
@@ -1883,6 +1916,10 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   <button class="bot-tab" data-tab="incoming">
     <span class="bot-tab-icon">📦</span>
     <span class="bot-tab-label">Orders</span>
+  </button>
+  <button class="bot-tab" data-tab="spend">
+    <span class="bot-tab-icon">💸</span>
+    <span class="bot-tab-label">Spend</span>
   </button>
   <button class="bot-tab" data-tab="wish">
     <span class="bot-tab-icon">🎯</span>
@@ -1919,6 +1956,19 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     other:  { name: 'Other',  color: '#B794F4' }
   };
 
+  // Spending categories (defined early — renderSpend can run before its own
+  // block, e.g. from a restored 'spend' tab, so this must not be in a TDZ).
+  const SPEND_CATS = [
+    { k: 'groceries', label: 'Groceries',   color: '#34d399' },
+    { k: 'food',      label: 'Food & drink', color: '#fbbf24' },
+    { k: 'shopping',  label: 'Shopping',     color: '#f97316' },
+    { k: 'transport', label: 'Transport',    color: '#38bdf8' },
+    { k: 'bills',     label: 'Bills',        color: '#a78bfa' },
+    { k: 'health',    label: 'Health',       color: '#fb7185' },
+    { k: 'fun',       label: 'Fun',          color: '#eab308' },
+    { k: 'other',     label: 'Other',        color: '#94a3b8' }
+  ];
+
   // ============================================================
   // BOTTOM TABS — switch between Net Worth / Subs / Orders.
   // Active tab persisted in localStorage.
@@ -1933,11 +1983,12 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       else s.setAttribute('hidden', '');
     });
     storeSet(TAB_KEY, name);
+    if (name === 'spend' && typeof renderSpend === 'function') renderSpend();
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
   tabs.forEach(b => b.addEventListener('click', () => setActiveTab(b.dataset.tab)));
   const savedTab = storeGet(TAB_KEY);
-  setActiveTab(savedTab && ['net','subs','incoming','wish'].includes(savedTab) ? savedTab : 'net');
+  setActiveTab(savedTab && ['net','subs','incoming','wish','spend'].includes(savedTab) ? savedTab : 'net');
 
   // ============================================================
   // NET WORTH (copied from the main dashboard, verbatim logic)
@@ -3382,6 +3433,90 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   safeRenderTicker();
   setInterval(safeRenderTicker, 1500);
 
+  // ============================================================
+  // SPENDING — log purchases, optionally deduct from an account,
+  // and feed the Overview "Spending" card. Synced via key 'spending'.
+  // ============================================================
+  function spendCatMeta(k) { return SPEND_CATS.find(c => c.k === k) || { label: (k || 'Other'), color: '#94a3b8' }; }
+  function spendMonthKey() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+  function fmtSpendDate(iso) { const p = String(iso || '').split('-'); if (p.length < 3) return iso || ''; const m = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; return m[(+p[1]) - 1] + ' ' + (+p[2]); }
+  function populateSpendCat() {
+    const sel = document.getElementById('spendCat'); if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = SPEND_CATS.map(c => '<option value="' + c.k + '">' + c.label + '</option>').join('');
+    if (prev) sel.value = prev;
+  }
+  function populateSpendFromCat() {
+    const sel = document.getElementById('spendFromCat'); if (!sel) return;
+    const prev = sel.value;
+    const accounts = (typeof listAllNwAccounts === 'function') ? listAllNwAccounts() : [];
+    const ICONS = { bank: '🏦', stocks: '📈', crypto: '🪙', other: '💼' };
+    sel.innerHTML = '<option value="">Don\'t deduct</option>' + accounts.map(a => '<option value="' + a.catKey + '::' + a.itemName + '">' + ICONS[a.catKey] + ' ' + escapeHtml(a.itemName) + '</option>').join('');
+    if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+  }
+  window.__addSpend = function () {
+    const nameEl = document.getElementById('spendName'), amtEl = document.getElementById('spendAmount');
+    if (!nameEl || !amtEl) return;
+    const name = (nameEl.value || '').trim(), amtRaw = parseFloat(amtEl.value);
+    if (!name || !(amtRaw > 0)) return;
+    const ccy = document.getElementById('spendCurrency').value, rate = exchangeRates[ccy] || 1, amtBase = amtRaw / rate;
+    const cat = document.getElementById('spendCat').value;
+    const dateEl = document.getElementById('spendDate'), date = dateEl.value || new Date().toISOString().slice(0, 10);
+    const fromVal = document.getElementById('spendFromCat').value;
+    let deductedFrom = null;
+    if (fromVal) {
+      const ix = fromVal.indexOf('::');
+      if (ix > 0) {
+        const catKey = fromVal.slice(0, ix), itemName = fromVal.slice(ix + 2);
+        const items = storeGet('nw:' + catKey) || [];
+        const itIdx = items.findIndex(x => String(x.name) === String(itemName));
+        if (itIdx >= 0) { items[itIdx].amount = (Number(items[itIdx].amount) || 0) - amtBase; storeSet('nw:' + catKey, items); logActivity(catKey, items[itIdx].name, -amtBase, 'edit'); deductedFrom = { cat: catKey, name: itemName }; }
+      }
+    }
+    const spending = storeGet('spending') || [];
+    spending.push({ id: 'sp' + Date.now() + '_' + Math.floor(Math.random() * 999), name: name, amount: amtBase, entered_amount: amtRaw, entered_currency: ccy, category: cat, date: date, deductedFrom: deductedFrom, ts: Date.now() });
+    storeSet('spending', spending);
+    nameEl.value = ''; amtEl.value = ''; dateEl.value = '';
+    renderSpend();
+    if (typeof renderAllNetWorth === 'function') renderAllNetWorth();
+  };
+  window.__deleteSpend = function (id) {
+    const spending = storeGet('spending') || [];
+    const idx = spending.findIndex(s => s.id === id); if (idx < 0) return;
+    const s = spending[idx];
+    if (s.deductedFrom) {
+      const items = storeGet('nw:' + s.deductedFrom.cat) || [];
+      const itIdx = items.findIndex(x => String(x.name) === String(s.deductedFrom.name));
+      if (itIdx >= 0) { items[itIdx].amount = (Number(items[itIdx].amount) || 0) + (Number(s.amount) || 0); storeSet('nw:' + s.deductedFrom.cat, items); logActivity(s.deductedFrom.cat, items[itIdx].name, Number(s.amount) || 0, 'edit'); }
+    }
+    spending.splice(idx, 1); storeSet('spending', spending);
+    renderSpend();
+    if (typeof renderAllNetWorth === 'function') renderAllNetWorth();
+  };
+  function renderSpend() {
+    const list = document.getElementById('spendList'); if (!list) return;
+    populateSpendCat(); populateSpendFromCat();
+    const empty = document.getElementById('spendEmpty'), totalEl = document.getElementById('spendTotal'), countEl = document.getElementById('spendCount');
+    const all = (storeGet('spending') || []).slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
+    const mk = spendMonthKey();
+    const thisMonth = all.filter(s => String(s.date || '').slice(0, 7) === mk);
+    const total = thisMonth.reduce((a, s) => a + (Number(s.amount) || 0), 0);
+    if (totalEl) totalEl.textContent = fmtMoney(total);
+    if (countEl) countEl.textContent = thisMonth.length + (thisMonth.length === 1 ? ' purchase this month' : ' purchases this month');
+    if (!all.length) { list.innerHTML = ''; if (empty) empty.hidden = false; return; }
+    if (empty) empty.hidden = true;
+    list.innerHTML = all.slice(0, 60).map(s => {
+      const meta = spendCatMeta(s.category);
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 4px;border-top:1px solid var(--border)">' +
+        '<span style="width:9px;height:9px;border-radius:50%;background:' + meta.color + ';flex:none"></span>' +
+        '<div style="flex:1;min-width:0"><div style="font-size:14px;color:var(--text-primary);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(s.name) + '</div>' +
+        '<div style="font-size:10.5px;color:var(--text-tertiary);margin-top:2px">' + meta.label + ' · ' + fmtSpendDate(s.date) + (s.deductedFrom ? ' · from ' + escapeHtml(s.deductedFrom.name) : '') + '</div></div>' +
+        '<span style="font-size:14px;font-weight:600;color:var(--text-primary)">' + fmtMoney(s.amount) + '</span>' +
+        '<button onclick="window.__deleteSpend(\'' + s.id + '\')" title="Delete" style="border:0;background:transparent;color:var(--text-tertiary);cursor:pointer;font-size:17px;padding:0 4px">×</button></div>';
+    }).join('');
+  }
+  renderSpend();
+
 })();
 </script>
 
@@ -3390,7 +3525,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     if (typeof initCloudSync !== 'function') return;
     initCloudSync({
       appKey: 'finance',
-      syncedKeys: ['subs', 'wishlist', 'incoming_orders', 'nw_currency', 'nw:activity', 'nw:history'],
+      syncedKeys: ['subs', 'wishlist', 'incoming_orders', 'nw_currency', 'nw:activity', 'nw:history', 'spending'],
       syncedPrefixes: ['nw:'],
       onApplied: function () { window.dispatchEvent(new Event('storage')); }
     });

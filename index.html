@@ -258,9 +258,11 @@
   // ================= FINANCE =================
   function monthlyEquivalent(it) { var a = Number(it.amount) || 0; if (it.period === 'yearly') return a / 12; if (it.period === 'weekly') return a * 4.345; return a; }
   function renderFinance() {
-    var subs = pull('finance', 'subs') || [];
-    var subCols = ['#eab308', '#f59e0b', '#fb923c', '#f97316', '#facc15', '#a78bfa', '#38bdf8'];
-    var subList = subs.map(function (it, i) { return { label: it.name || 'Sub', mo: monthlyEquivalent(it), col: subCols[i % subCols.length] }; }).sort(function (a, b) { return b.mo - a.mo; });
+    var nowM = new Date(), curMonth = nowM.getFullYear() + '-' + String(nowM.getMonth() + 1).padStart(2, '0');
+    var spendMeta = { groceries: ['Groceries', '#34d399'], food: ['Food & drink', '#fbbf24'], shopping: ['Shopping', '#f97316'], transport: ['Transport', '#38bdf8'], bills: ['Bills', '#a78bfa'], health: ['Health', '#fb7185'], fun: ['Fun', '#eab308'], other: ['Other', '#94a3b8'] };
+    var byCat = {};
+    (pull('finance', 'spending') || []).forEach(function (s) { if (String(s.date || '').slice(0, 7) === curMonth) { var k = s.category || 'other'; byCat[k] = (byCat[k] || 0) + (Number(s.amount) || 0); } });
+    var subList = Object.keys(byCat).map(function (k) { var m = spendMeta[k] || [k, '#94a3b8']; return { label: m[0], mo: byCat[k], col: m[1] }; }).sort(function (a, b) { return b.mo - a.mo; });
     var monthly = subList.reduce(function (a, s) { return a + s.mo; }, 0);
     var cum = 0, stops = subList.map(function (s) { var st = cum; var pc = monthly ? s.mo / monthly * 100 : 0; cum += pc; return s.col + ' ' + st.toFixed(1) + '% ' + cum.toFixed(1) + '%'; });
     var pie = subList.length ? 'conic-gradient(' + stops.join(',') + ')' : 'rgba(255,255,255,0.06)';
