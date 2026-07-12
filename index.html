@@ -115,33 +115,26 @@
   // ================= SIDEBAR =================
   function renderSide() {
     var cats = [
-      { l:'Overview', s:'Top of page', ic:'▦', col:'#f4f4f6', href:null, sec:'top' },
-      { l:'Main', s:"Today's plan", ic:'📋', col:'#34d399', href:'main.html', sec:'secReminders' },
-      { l:'Fitness', s:'Workouts', ic:'💪', col:'#f59e0b', href:'gym.html', sec:'secWorkouts' },
-      { l:'Health', s:'Sleep score', ic:'💊', col:'#fb7185', href:'health.html', sec:'secSleep' },
-      { l:'Water', s:'Hydration', ic:'💧', col:'#38bdf8', href:'po-water.html', sec:'secStats' },
-      { l:'Finance', s:'Money', ic:'📊', col:'#eab308', href:'finance.html', sec:'secFinance' },
-      { l:'Caffeine', s:'14-day trend', ic:'☕', col:'#a78bfa', href:'caffeine.html', sec:'secCaffeine' },
-      { l:'Habits', s:'Monthly streaks', ic:'🔥', col:'#fb923c', href:'habits.html', sec:'secHabits' },
-      { l:'Running', s:'Pace trend', ic:'🏃', col:'#f97316', href:'running.html', sec:'secRunning' },
-      { l:'Calories', s:'Today', ic:'🍎', col:'#ef4444', href:'calories.html', sec:'secStats' }
+      { l:'Overview', s:'Top of page', ic:'▦', col:'#f4f4f6', href:'index.html' },
+      { l:'Main', s:'Goals & daily plan', ic:'📋', col:'#34d399', href:'main.html' },
+      { l:'Fitness', s:'Workouts & photos', ic:'💪', col:'#f59e0b', href:'gym.html' },
+      { l:'Health', s:'Supplements & sleep', ic:'💊', col:'#fb7185', href:'health.html' },
+      { l:'Water', s:'Hydration', ic:'💧', col:'#38bdf8', href:'po-water.html' },
+      { l:'Finance', s:'Money & net worth', ic:'📊', col:'#eab308', href:'finance.html' },
+      { l:'Caffeine', s:'Intake & timing', ic:'☕', col:'#a78bfa', href:'caffeine.html' },
+      { l:'Habits', s:'Streaks', ic:'🔥', col:'#fb923c', href:'habits.html' },
+      { l:'Running', s:'Coach & paces', ic:'🏃', col:'#f97316', href:'running.html' },
+      { l:'Calories', s:'Food & macros', ic:'🍎', col:'#ef4444', href:'calories.html' }
     ];
-    var html = '<div class="navrow active" data-sec="top"><div class="nav-ic" style="background:rgba(255,255,255,0.08);color:#f4f4f6">▦</div><div style="min-width:0"><div class="nav-l">Overview</div><div class="nav-s">Top of page</div></div></div>';
-    html += cats.slice(1).map(function (c) {
-      return '<div class="navrow" data-sec="' + c.sec + '" data-href="' + c.href + '"><div class="nav-ic" style="background:' + c.col + '22;border:1px solid ' + c.col + '33;color:' + c.col + '">' + c.ic + '</div>' +
-        '<div style="min-width:0"><div class="nav-l">' + c.l + '</div><div class="nav-s">' + c.s + '</div></div></div>';
+    // Each item NAVIGATES to its real page (where you actually log things).
+    document.getElementById('side').innerHTML = cats.map(function (c, i) {
+      var isOv = i === 0;
+      var icHtml = isOv
+        ? '<div class="nav-ic" style="background:rgba(255,255,255,0.08);color:#f4f4f6">▦</div>'
+        : '<div class="nav-ic" style="background:' + c.col + '22;border:1px solid ' + c.col + '33;color:' + c.col + '">' + c.ic + '</div>';
+      return '<a class="navrow' + (isOv ? ' active' : '') + '" href="' + c.href + '">' + icHtml +
+        '<div style="min-width:0"><div class="nav-l">' + c.l + '</div><div class="nav-s">' + c.s + '</div></div></a>';
     }).join('');
-    var side = document.getElementById('side');
-    side.innerHTML = html;
-    Array.prototype.forEach.call(side.querySelectorAll('.navrow'), function (row) {
-      row.addEventListener('click', function () {
-        var sec = row.getAttribute('data-sec');
-        Array.prototype.forEach.call(side.querySelectorAll('.navrow'), function (r) { r.classList.remove('active'); });
-        row.classList.add('active');
-        if (sec === 'top') { window.scrollTo({ top: 0, behavior: 'smooth' }); }
-        else { var el = document.getElementById(sec); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-      });
-    });
   }
 
   // ================= HEADER =================
