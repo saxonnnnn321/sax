@@ -30,6 +30,9 @@
   .ttl:hover{color:#a5b4fc;}
   .mut{color:rgba(255,255,255,0.4);}
   .mono{font-family:'JetBrains Mono',monospace;}
+  .chartwrap{position:relative;}
+  .chartwrap svg{cursor:crosshair;touch-action:none;}
+  .charttip{position:absolute;pointer-events:none;display:none;transform:translate(-50%,-100%);background:#0d1122;border:1px solid rgba(255,255,255,0.15);border-radius:6px;padding:4px 9px;font:600 10.5px 'JetBrains Mono',monospace;color:#f4f4f6;white-space:nowrap;z-index:8;box-shadow:0 4px 14px rgba(0,0,0,0.5);}
   .shell{position:relative;display:flex;width:100vw;min-height:100vh;background:linear-gradient(160deg,#070812 0%,#0b0f20 55%,#0a0d1c 100%);}
   .side{width:236px;flex:none;padding:24px 16px;display:flex;flex-direction:column;gap:4px;border-right:1px solid rgba(255,255,255,0.06);position:sticky;top:0;height:100vh;overflow-y:auto;}
   .main{flex:1;min-width:0;padding:26px 34px 60px;}
@@ -102,14 +105,39 @@
     return { line:line, area:area, pts:pts };
   }
   function svgLine(id, values, labels, w, h, stroke, grad, unit) {
-    var c=chart(values,w,h,14,stroke,grad);
-    if(!c.pts.length) return '<div class="mut" style="font-size:12px;padding:20px 0;text-align:center">Not enough data yet.</div>';
-    var dots=c.pts.map(function(p,i){return '<circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="8" fill="transparent"><title>'+(labels?labels[i]:('#'+(i+1)))+': '+p.v+(unit||'')+'</title></circle><circle cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="2.5" fill="'+stroke+'" stroke="#0d1122" stroke-width="1"/>';}).join('');
-    return '<svg width="100%" height="'+h+'" viewBox="0 0 '+w+' '+h+'" style="overflow:visible;margin-top:4px">'+
-      '<defs><linearGradient id="'+grad+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="'+stroke+'" stop-opacity="0.45"/><stop offset="100%" stop-color="'+stroke+'" stop-opacity="0"/></linearGradient></defs>'+
-      '<path d="'+c.area+'" fill="url(#'+grad+')"/>'+
-      '<path d="'+c.line+'" fill="none" stroke="'+stroke+'" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" pathLength="1" style="stroke-dasharray:1;animation:drawLine 1.3s .3s ease backwards"/>'+
-      dots+'</svg>';
+    var c = chart(values, w, h, 14);
+    if (!c.pts.length) return '<div class="mut" style="font-size:12px;padding:20px 0;text-align:center">Not enough data yet.</div>';
+    var ptData = c.pts.map(function (p, i) { return { x: +p.x.toFixed(1), y: +p.y.toFixed(1), label: (labels ? labels[i] : ('#' + (i + 1))) + ': ' + p.v + (unit || '') }; });
+    var dots = c.pts.map(function (p) { return '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="2.5" fill="' + stroke + '" stroke="#0d1122" stroke-width="1"/>'; }).join('');
+    return '<div class="chartwrap"><svg width="100%" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" data-w="' + w + '" data-h="' + h + '" data-pts=\'' + JSON.stringify(ptData) + '\' style="overflow:visible;margin-top:4px">' +
+      '<defs><linearGradient id="' + grad + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="' + stroke + '" stop-opacity="0.45"/><stop offset="100%" stop-color="' + stroke + '" stop-opacity="0"/></linearGradient></defs>' +
+      '<path d="' + c.area + '" fill="url(#' + grad + ')"/>' +
+      '<path d="' + c.line + '" fill="none" stroke="' + stroke + '" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" pathLength="1" style="stroke-dasharray:1;animation:drawLine 1.3s .3s ease backwards"/>' +
+      dots + '<circle class="chart-hi" r="4.5" fill="none" stroke="#fff" stroke-width="1.5" style="display:none"/>' +
+      '</svg><div class="charttip"></div></div>';
+  }
+
+  function attachChartHovers() {
+    Array.prototype.forEach.call(document.querySelectorAll('.chartwrap'), function (wrap) {
+      var svg = wrap.querySelector('svg'); if (!svg || svg._wired) return; svg._wired = true;
+      var tip = wrap.querySelector('.charttip'), hi = svg.querySelector('.chart-hi');
+      var W = +svg.getAttribute('data-w'), H = +svg.getAttribute('data-h'), pts;
+      try { pts = JSON.parse(svg.getAttribute('data-pts') || '[]'); } catch (e) { pts = []; }
+      if (!pts.length) return;
+      function move(ev) {
+        var r = svg.getBoundingClientRect();
+        var cx = ((ev.touches ? ev.touches[0].clientX : ev.clientX) - r.left) / r.width * W;
+        var best = pts[0]; pts.forEach(function (p) { if (Math.abs(p.x - cx) < Math.abs(best.x - cx)) best = p; });
+        if (hi) { hi.setAttribute('cx', best.x); hi.setAttribute('cy', best.y); hi.style.display = ''; }
+        tip.style.display = 'block'; tip.style.left = (best.x / W * r.width) + 'px'; tip.style.top = (best.y / H * r.height - 8) + 'px'; tip.textContent = best.label;
+      }
+      function leave() { tip.style.display = 'none'; if (hi) hi.style.display = 'none'; }
+      svg.addEventListener('mousemove', move);
+      svg.addEventListener('mouseleave', leave);
+      svg.addEventListener('touchstart', function (e) { move(e); e.preventDefault(); }, { passive: false });
+      svg.addEventListener('touchmove', function (e) { move(e); e.preventDefault(); }, { passive: false });
+      svg.addEventListener('touchend', leave);
+    });
   }
 
   // ================= SIDEBAR =================
@@ -360,13 +388,13 @@
         svgLine('run', vals, labels, 560, 190, '#fb923c', 'gradRun', ' km') + '</div>';
   }
 
-  function renderAll() { renderHeader(); renderReminders(); renderSleep(); renderStats(); renderFinance(); renderHabits(); renderWorkouts(); renderCaffeine(); renderRunning(); }
+  function renderAll() { renderHeader(); renderReminders(); renderSleep(); renderStats(); renderFinance(); renderHabits(); renderWorkouts(); renderCaffeine(); renderRunning(); attachChartHovers(); }
 
   document.getElementById('rangePills').addEventListener('click', function (e) {
     var b = e.target.closest('.rangebtn'); if (!b) return;
     rangeDays = +b.getAttribute('data-n');
     Array.prototype.forEach.call(this.querySelectorAll('.rangebtn'), function (x) { x.classList.toggle('active', x === b); });
-    renderSleep();
+    renderSleep(); attachChartHovers();
   });
 
   renderSide();
