@@ -174,20 +174,65 @@
   }
 
   // ================= REMINDERS (pull from all sections) =================
+  // ---- write-back + best-effort cloud sync for tickable reminders ----
+  var supaClient = null, remoteFetched = false;
+  function getSupa() { if (!supaClient && window.supabase) { try { supaClient = window.supabase.createClient(URL, KEY); } catch (e) {} } return supaClient; }
+  function persistReminder(appKey, storeKey, val) {
+    if (!rows[appKey] || typeof rows[appKey] !== 'object') rows[appKey] = {};
+    rows[appKey][storeKey] = val;
+    try { localStorage.setItem(storeKey, JSON.stringify(val)); } catch (e) {}
+    // Only push once we hold a real remote snapshot, so a partial write can't
+    // clobber keys we haven't fetched yet. Sub-pages' own sync fills the gap otherwise.
+    if (remoteFetched) { var supa = getSupa(); if (supa) { try { supa.from('app_state').upsert({ key: appKey, data: rows[appKey] }, { onConflict: 'key' }).then(function () {}, function () {}); } catch (e) {} } }
+  }
+  function toggleReminder(row) {
+    var kind = row.getAttribute('data-kind');
+    if (kind === 'goal') {
+      var gkey = row.getAttribute('data-key'), idx = +row.getAttribute('data-idx');
+      var arr = pull('goals', gkey) || [];
+      if (arr[idx]) { arr[idx].done = !arr[idx].done; persistReminder('goals', gkey, arr); }
+    } else if (kind === 'take') {
+      var tkey = row.getAttribute('data-key'), id = row.getAttribute('data-id');
+      var taken = pull('health', tkey) || {};
+      if (taken[id]) delete taken[id]; else taken[id] = Date.now();
+      persistReminder('health', tkey, taken);
+    } else if (kind === 'habit') {
+      var hid = row.getAttribute('data-id');
+      var hb = pull('habits', 'habits:v1');
+      if (hb) {
+        hb.comps = hb.comps || {};
+        var comps = hb.comps[hid] || [], t = todayCal();
+        if (comps.some(function (c) { return c.date === t; })) comps = comps.filter(function (c) { return c.date !== t; });
+        else comps.push({ date: t, hour: new Date().getHours() });
+        hb.comps[hid] = comps;
+        persistReminder('habits', 'habits:v1', hb);
+      }
+    }
+    renderReminders();
+  }
+
   function renderReminders() {
-    var items = [];
-    (pull('goals', 'goals:' + activeDate()) || []).forEach(function (g) { if (g && g.text) items.push({ label: g.text, cat: 'to-do', col: '#34d399', done: !!g.done }); });
-    (pull('goals', 'cal:events') || []).filter(function (e) { return e && e.date === todayCal(); }).forEach(function (e) { items.push({ label: e.title, cat: 'event', col: '#38bdf8', done: false }); });
-    var stack = pull('health', 'stack:items') || [], taken = pull('health', 'stack:taken:' + activeDate()) || {};
-    stack.forEach(function (it) { if (it && it.name) items.push({ label: it.name, cat: 'take', col: '#fb7185', done: !!taken[it.id] }); });
+    var items = [], ad = activeDate();
+    (pull('goals', 'goals:' + ad) || []).forEach(function (g, i) { if (g && g.text) items.push({ label: g.text, cat: 'to-do', col: '#34d399', done: !!g.done, kind: 'goal', key: 'goals:' + ad, idx: i }); });
+    (pull('goals', 'cal:events') || []).filter(function (e) { return e && e.date === todayCal(); }).forEach(function (e) { items.push({ label: e.title, cat: 'event', col: '#38bdf8', done: false, kind: 'event' }); });
+    var stack = pull('health', 'stack:items') || [], taken = pull('health', 'stack:taken:' + ad) || {};
+    stack.forEach(function (it) { if (it && it.name) items.push({ label: it.name, cat: 'take', col: '#fb7185', done: !!taken[it.id], kind: 'take', key: 'stack:taken:' + ad, id: it.id }); });
     var hb = pull('habits', 'habits:v1');
-    if (hb && hb.habits) { hb.habits.forEach(function (h) { var comps = (hb.comps && hb.comps[h.id]) || []; var doneToday = comps.some(function (c) { return c.date === todayCal(); }); items.push({ label: h.name, cat: 'habit', col: '#fb923c', done: doneToday }); }); }
+    if (hb && hb.habits) { hb.habits.forEach(function (h) { var comps = (hb.comps && hb.comps[h.id]) || []; var doneToday = comps.some(function (c) { return c.date === todayCal(); }); items.push({ label: h.name, cat: 'habit', col: '#fb923c', done: doneToday, kind: 'habit', id: h.id }); }); }
 
     var doneN = items.filter(function (i) { return i.done; }).length;
     items.sort(function (a, b) { return (a.done ? 1 : 0) - (b.done ? 1 : 0); });
     var body = items.length ? items.map(function (r) {
-      return '<div class="remrow" style="display:flex;align-items:center;gap:12px;padding:9px 6px;border-radius:8px">' +
-        '<div style="width:7px;height:7px;border-radius:50%;flex:none;background:' + (r.done ? 'rgba(255,255,255,0.25)' : r.col) + '"></div>' +
+      var toggleable = r.kind === 'goal' || r.kind === 'take' || r.kind === 'habit';
+      var lead = toggleable
+        ? '<div style="width:17px;height:17px;border-radius:6px;flex:none;border:1.5px solid ' + (r.done ? r.col : 'rgba(255,255,255,0.28)') + ';background:' + (r.done ? r.col : 'transparent') + ';display:flex;align-items:center;justify-content:center;font:700 11px \'Inter\',sans-serif;color:#0b0f20;transition:all .12s">' + (r.done ? '✓' : '') + '</div>'
+        : '<div style="width:7px;height:7px;border-radius:50%;flex:none;background:' + r.col + '"></div>';
+      var attrs = 'data-kind="' + r.kind + '"' +
+        (r.key != null ? ' data-key="' + esc(r.key) + '"' : '') +
+        (r.idx != null ? ' data-idx="' + r.idx + '"' : '') +
+        (r.id != null ? ' data-id="' + esc(String(r.id)) + '"' : '');
+      return '<div class="remrow" ' + attrs + ' style="display:flex;align-items:center;gap:12px;padding:9px 6px;border-radius:8px' + (toggleable ? ';cursor:pointer' : '') + '">' +
+        lead +
         '<div style="flex:1;min-width:0;font:500 13px \'Inter\',sans-serif;color:' + (r.done ? 'rgba(255,255,255,0.35)' : '#f4f4f6') + ';text-decoration:' + (r.done ? 'line-through' : 'none') + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(r.label) + '</div>' +
         '<div class="mono" style="font:600 10px \'JetBrains Mono\',monospace;color:' + r.col + ';background:' + r.col + '1f;padding:3px 8px;border-radius:6px;text-transform:uppercase;letter-spacing:0.04em">' + r.cat + '</div></div>';
     }).join('') : '<div class="mut" style="font-size:13px;padding:16px 0;text-align:center;font-style:italic">Nothing due today. Add goals on Main, events in the calendar, or supplements in Health.</div>';
@@ -406,12 +451,17 @@
 
   renderSide();
   renderAll();
+  document.getElementById('secReminders').addEventListener('click', function (e) {
+    var row = e.target.closest('.remrow'); if (!row) return;
+    var kind = row.getAttribute('data-kind'); if (!kind || kind === 'event') return;
+    toggleReminder(row);
+  });
   (async function () {
-    if (!window.supabase) return;
+    var supa = getSupa();
+    if (!supa) return;
     try {
-      var supa = window.supabase.createClient(URL, KEY);
       var res = await supa.from('app_state').select('key,data').in('key', ['goals', 'health', 'finance', 'calories', 'garmin', 'habits', 'caffeine', 'po-coach']);
-      if (res && res.data) { res.data.forEach(function (r) { rows[r.key] = r.data; }); renderAll(); }
+      if (res && res.data) { res.data.forEach(function (r) { rows[r.key] = r.data; }); remoteFetched = true; renderAll(); }
     } catch (e) {}
   })();
   window.addEventListener('focus', renderAll);
