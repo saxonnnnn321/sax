@@ -307,7 +307,9 @@
     var spendMeta = { groceries: ['Groceries', '#34d399'], food: ['Food & drink', '#fbbf24'], shopping: ['Shopping', '#f97316'], transport: ['Transport', '#38bdf8'], bills: ['Bills', '#a78bfa'], health: ['Health', '#fb7185'], fun: ['Fun', '#eab308'], other: ['Other', '#94a3b8'] };
     var byCat = {};
     (pull('finance', 'spending') || []).forEach(function (s) { if (String(s.date || '').slice(0, 7) === curMonth) { var k = s.category || 'other'; byCat[k] = (byCat[k] || 0) + (Number(s.amount) || 0); } });
-    var subList = Object.keys(byCat).map(function (k) { var m = spendMeta[k] || [k, '#94a3b8']; return { label: m[0], mo: byCat[k], col: m[1] }; }).sort(function (a, b) { return b.mo - a.mo; });
+    var redRamp = ['#ef4444', '#fca5a5', '#b91c1c', '#f87171', '#dc2626', '#fecaca', '#991b1b', '#7f1d1d'];
+    var subList = Object.keys(byCat).map(function (k) { var m = spendMeta[k] || [k]; return { label: m[0], mo: byCat[k] }; }).sort(function (a, b) { return b.mo - a.mo; });
+    subList.forEach(function (s, i) { s.col = redRamp[i % redRamp.length]; });
     var monthly = subList.reduce(function (a, s) { return a + s.mo; }, 0);
     var cum = 0, stops = subList.map(function (s) { var st = cum; var pc = monthly ? s.mo / monthly * 100 : 0; cum += pc; return s.col + ' ' + st.toFixed(1) + '% ' + cum.toFixed(1) + '%'; });
     var pie = subList.length ? 'conic-gradient(' + stops.join(',') + ')' : 'rgba(255,255,255,0.06)';
@@ -336,7 +338,7 @@
 
     document.getElementById('secFinance').innerHTML =
       '<div id="anchFinance" style="display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap">' +
-        '<div class="card" style="flex:1;min-width:230px;border:1px solid rgba(234,179,8,0.18);animation-delay:.27s">' +
+        '<div class="card" style="flex:1;min-width:230px;border:1px solid rgba(239,68,68,0.20);animation-delay:.27s">' +
           '<a href="finance.html" class="ttl" style="display:block;margin-bottom:12px">Spending · monthly</a>' +
           '<div style="display:flex;align-items:center;gap:18px"><div style="width:110px;height:110px;border-radius:50%;background:' + pie + ';flex:none;position:relative"><div class="mono" style="position:absolute;inset:15px;border-radius:50%;background:#0d1122;display:flex;align-items:center;justify-content:center;font:700 12px \'JetBrains Mono\',monospace;color:#f4f4f6;text-align:center">' + money(monthly) + '</div></div>' +
           '<div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0">' + slices + '</div></div></div>' +
