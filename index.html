@@ -92,7 +92,7 @@
   function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
   function pull(appKey,storeKey){var d=rows[appKey];if(d&&typeof d==='object'&&Object.prototype.hasOwnProperty.call(d,storeKey))return d[storeKey];try{var v=localStorage.getItem(storeKey);return v==null?null:JSON.parse(v);}catch(e){return null;}}
   function garmin(){return rows['garmin']||null;}
-  function money(v){return 'CHF '+Math.round(Number(v)||0).toLocaleString();}
+  function money(v){return 'AUD '+Math.round(Number(v)||0).toLocaleString();}
 
   // ---- generic line/area chart ----
   function chart(values, w, h, pad, stroke, gradId) {
@@ -293,7 +293,7 @@
           '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><a href="finance.html" class="ttl">Incoming orders</a><div class="mono" style="font:700 13px \'JetBrains Mono\',monospace;color:#34d399">' + money(ordTotal) + '</div></div>' +
           '<div style="display:flex;flex-direction:column;gap:10px">' + ordBars + '</div></div>' +
         '<div class="card" style="flex:1;min-width:200px;border:1px solid rgba(56,189,248,0.18);animation-delay:.35s">' +
-          '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><a href="finance.html" class="ttl">Net worth</a><div class="mono" style="font:700 13px \'JetBrains Mono\',monospace;color:' + (nwDelta >= 0 ? '#34d399' : '#fb7185') + '">' + (nwDelta >= 0 ? '+' : '-') + money(Math.abs(nwDelta)).replace('CHF ', '') + '</div></div>' +
+          '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><a href="finance.html" class="ttl">Net worth</a><div class="mono" style="font:700 13px \'JetBrains Mono\',monospace;color:' + (nwDelta >= 0 ? '#34d399' : '#fb7185') + '">' + (nwDelta >= 0 ? '+' : '-') + money(Math.abs(nwDelta)).replace('AUD ', '') + '</div></div>' +
           '<div class="mono" style="font:700 20px \'JetBrains Mono\',monospace;color:#f4f4f6;margin-bottom:4px">' + (nw != null ? money(nw) : '—') + '</div>' +
           (nwVals.length > 1 ? svgLine('nw', nwVals, null, 560, 90, '#7dd3fc', 'gradNet', '') : '<div class="mut" style="font-size:11px">Add assets in Finance to chart it.</div>') +
         '</div></div>';
