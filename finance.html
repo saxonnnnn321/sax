@@ -1976,6 +1976,11 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   const TAB_KEY = 'finance_active_tab';
   const tabs = document.querySelectorAll('.bot-tab');
   const sections = document.querySelectorAll('.section[data-section]');
+  // Gate the spend re-render: during the very first setActiveTab() call (tab
+  // restore) the script hasn't yet defined NW_CATS and the spend helpers, so
+  // calling renderSpend() here would TDZ-crash the whole IIFE. The end-of-IIFE
+  // renderSpend() handles the initial paint; this only fires on user clicks.
+  let financeReady = false;
   function setActiveTab(name) {
     tabs.forEach(b => b.classList.toggle('active', b.dataset.tab === name));
     sections.forEach(s => {
@@ -1983,7 +1988,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
       else s.setAttribute('hidden', '');
     });
     storeSet(TAB_KEY, name);
-    if (name === 'spend' && typeof renderSpend === 'function') renderSpend();
+    if (name === 'spend' && financeReady && typeof renderSpend === 'function') renderSpend();
     window.scrollTo({ top: 0, behavior: 'instant' });
   }
   tabs.forEach(b => b.addEventListener('click', () => setActiveTab(b.dataset.tab)));
@@ -3515,6 +3520,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
         '<button onclick="window.__deleteSpend(\'' + s.id + '\')" title="Delete" style="border:0;background:transparent;color:var(--text-tertiary);cursor:pointer;font-size:17px;padding:0 4px">×</button></div>';
     }).join('');
   }
+  financeReady = true;
   renderSpend();
 
 })();
