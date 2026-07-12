@@ -112,7 +112,7 @@
     return '<div class="chartwrap"><svg width="100%" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" data-w="' + w + '" data-h="' + h + '" data-pts=\'' + JSON.stringify(ptData) + '\' style="overflow:visible;margin-top:4px">' +
       '<defs><linearGradient id="' + grad + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="' + stroke + '" stop-opacity="0.45"/><stop offset="100%" stop-color="' + stroke + '" stop-opacity="0"/></linearGradient></defs>' +
       '<path d="' + c.area + '" fill="url(#' + grad + ')"/>' +
-      '<path d="' + c.line + '" fill="none" stroke="' + stroke + '" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round" pathLength="1" style="stroke-dasharray:1;animation:drawLine 1.3s .3s ease backwards"/>' +
+      '<path d="' + c.line + '" fill="none" stroke="' + stroke + '" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>' +
       dots + '<circle class="chart-hi" r="4.5" fill="none" stroke="#fff" stroke-width="1.5" style="display:none"/>' +
       '</svg><div class="charttip"></div></div>';
   }
