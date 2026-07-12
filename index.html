@@ -268,15 +268,19 @@
       return '<div style="display:flex;align-items:center;gap:8px"><div style="width:9px;height:9px;border-radius:3px;background:' + s.col + ';flex:none"></div>' +
         '<div style="flex:1;font:500 11.5px \'Inter\',sans-serif;color:rgba(255,255,255,0.7);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(s.label) + '</div>' +
         '<div class="mono" style="font:600 11.5px \'JetBrains Mono\',monospace;color:#f4f4f6">' + (monthly ? Math.round(s.mo / monthly * 100) : 0) + '%</div></div>';
-    }).join('') || '<div class="mut" style="font-size:12px">No subscriptions yet.</div>';
+    }).join('') || '';
 
     var orders = pull('finance', 'incoming_orders') || [];
-    var ordTotal = orders.reduce(function (a, o) { return a + (Number(o.amount) || Number(o.price) || 0); }, 0);
-    var ordBars = orders.slice(0, 4).map(function (o) {
-      var amt = Number(o.amount) || Number(o.price) || 0;
-      return '<div><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font:500 11.5px \'Inter\',sans-serif;color:rgba(255,255,255,0.7);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%">' + esc(o.name || o.title || 'Order') + '</span><span class="mono" style="font:600 11.5px \'JetBrains Mono\',monospace;color:#f4f4f6">' + money(amt) + '</span></div>' +
-        '<div style="height:8px;border-radius:4px;background:rgba(255,255,255,0.08);overflow:hidden"><div style="height:100%;width:' + (ordTotal ? clamp(amt / ordTotal * 100, 6, 100) : 6) + '%;background:linear-gradient(90deg,#34d399,#10b981);border-radius:4px"></div></div></div>';
-    }).join('') || '<div class="mut" style="font-size:12px">Nothing on the way.</div>';
+    var ordCols = ['#34d399', '#10b981', '#4ade80', '#22c55e', '#6ee7b7', '#a7f3d0'];
+    var ordList = orders.map(function (o, i) { return { label: o.name || o.title || 'Order', amt: Number(o.amount) || Number(o.price) || 0, col: ordCols[i % ordCols.length] }; }).sort(function (a, b) { return b.amt - a.amt; });
+    var ordTotal = ordList.reduce(function (a, s) { return a + s.amt; }, 0);
+    var ocum = 0, ostops = ordList.map(function (s) { var st = ocum; var pc = ordTotal ? s.amt / ordTotal * 100 : 0; ocum += pc; return s.col + ' ' + st.toFixed(1) + '% ' + ocum.toFixed(1) + '%'; });
+    var ordPie = ordList.length ? 'conic-gradient(' + ostops.join(',') + ')' : 'rgba(255,255,255,0.06)';
+    var ordSlices = ordList.slice(0, 5).map(function (s) {
+      return '<div style="display:flex;align-items:center;gap:8px"><div style="width:9px;height:9px;border-radius:3px;background:' + s.col + ';flex:none"></div>' +
+        '<div style="flex:1;min-width:0;font:500 11.5px \'Inter\',sans-serif;color:rgba(255,255,255,0.7);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(s.label) + '</div>' +
+        '<div class="mono" style="font:600 11.5px \'JetBrains Mono\',monospace;color:#f4f4f6">' + (ordTotal ? Math.round(s.amt / ordTotal * 100) : 0) + '%</div></div>';
+    }).join('') || '';
 
     var hist = pull('finance', 'nw:history') || [];
     var nwVals = hist.slice(-12).map(function (x) { return Math.round(x.v || 0); });
@@ -289,9 +293,10 @@
           '<a href="finance.html" class="ttl" style="display:block;margin-bottom:12px">Spending · monthly</a>' +
           '<div style="display:flex;align-items:center;gap:18px"><div style="width:110px;height:110px;border-radius:50%;background:' + pie + ';flex:none;position:relative"><div class="mono" style="position:absolute;inset:15px;border-radius:50%;background:#0d1122;display:flex;align-items:center;justify-content:center;font:700 12px \'JetBrains Mono\',monospace;color:#f4f4f6;text-align:center">' + money(monthly) + '</div></div>' +
           '<div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0">' + slices + '</div></div></div>' +
-        '<div class="card" style="flex:1;min-width:200px;border:1px solid rgba(52,211,153,0.18);animation-delay:.31s">' +
+        '<div class="card" style="flex:1;min-width:230px;border:1px solid rgba(52,211,153,0.18);animation-delay:.31s">' +
           '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><a href="finance.html" class="ttl">Income</a><div class="mono" style="font:700 13px \'JetBrains Mono\',monospace;color:#34d399">' + money(ordTotal) + '</div></div>' +
-          '<div style="display:flex;flex-direction:column;gap:10px">' + ordBars + '</div></div>' +
+          '<div style="display:flex;align-items:center;gap:18px"><div style="width:110px;height:110px;border-radius:50%;background:' + ordPie + ';flex:none;position:relative"><div class="mono" style="position:absolute;inset:15px;border-radius:50%;background:#0d1122;display:flex;align-items:center;justify-content:center;font:700 12px \'JetBrains Mono\',monospace;color:#f4f4f6;text-align:center">' + money(ordTotal) + '</div></div>' +
+          '<div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0">' + ordSlices + '</div></div></div>' +
         '<div class="card" style="flex:1;min-width:200px;border:1px solid rgba(56,189,248,0.18);animation-delay:.35s">' +
           '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><a href="finance.html" class="ttl">Net worth</a><div class="mono" style="font:700 13px \'JetBrains Mono\',monospace;color:' + (nwDelta >= 0 ? '#34d399' : '#fb7185') + '">' + (nwDelta >= 0 ? '+' : '-') + money(Math.abs(nwDelta)).replace('AUD ', '') + '</div></div>' +
           '<div class="mono" style="font:700 20px \'JetBrains Mono\',monospace;color:#f4f4f6;margin-bottom:4px">' + (nw != null ? money(nw) : '—') + '</div>' +
