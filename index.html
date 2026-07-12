@@ -286,11 +286,11 @@
     document.getElementById('secFinance').innerHTML =
       '<div id="anchFinance" style="display:flex;gap:14px;margin-bottom:14px;flex-wrap:wrap">' +
         '<div class="card" style="flex:1;min-width:230px;border:1px solid rgba(234,179,8,0.18);animation-delay:.27s">' +
-          '<a href="finance.html" class="ttl" style="display:block;margin-bottom:12px">Subscriptions · monthly</a>' +
+          '<a href="finance.html" class="ttl" style="display:block;margin-bottom:12px">Spending · monthly</a>' +
           '<div style="display:flex;align-items:center;gap:18px"><div style="width:110px;height:110px;border-radius:50%;background:' + pie + ';flex:none;position:relative"><div class="mono" style="position:absolute;inset:15px;border-radius:50%;background:#0d1122;display:flex;align-items:center;justify-content:center;font:700 12px \'JetBrains Mono\',monospace;color:#f4f4f6;text-align:center">' + money(monthly) + '</div></div>' +
           '<div style="display:flex;flex-direction:column;gap:6px;flex:1;min-width:0">' + slices + '</div></div></div>' +
         '<div class="card" style="flex:1;min-width:200px;border:1px solid rgba(52,211,153,0.18);animation-delay:.31s">' +
-          '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><a href="finance.html" class="ttl">Incoming orders</a><div class="mono" style="font:700 13px \'JetBrains Mono\',monospace;color:#34d399">' + money(ordTotal) + '</div></div>' +
+          '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px"><a href="finance.html" class="ttl">Income</a><div class="mono" style="font:700 13px \'JetBrains Mono\',monospace;color:#34d399">' + money(ordTotal) + '</div></div>' +
           '<div style="display:flex;flex-direction:column;gap:10px">' + ordBars + '</div></div>' +
         '<div class="card" style="flex:1;min-width:200px;border:1px solid rgba(56,189,248,0.18);animation-delay:.35s">' +
           '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px"><a href="finance.html" class="ttl">Net worth</a><div class="mono" style="font:700 13px \'JetBrains Mono\',monospace;color:' + (nwDelta >= 0 ? '#34d399' : '#fb7185') + '">' + (nwDelta >= 0 ? '+' : '-') + money(Math.abs(nwDelta)).replace('AUD ', '') + '</div></div>' +
