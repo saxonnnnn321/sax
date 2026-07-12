@@ -1120,7 +1120,9 @@ html, body {
     try { if (window.self !== window.top) return; } catch (e) { return; }
     if (typeof initCloudSync !== 'function') return;
     initCloudSync({
-      appKey: 'health',
+      // Own row — must NOT share 'health' with the supplements page, or each
+      // page's whole-row sync would overwrite the other's keys (data loss).
+      appKey: 'water',
       syncedKeys: ['po_water_v1'],
       onApplied: function () { window.dispatchEvent(new Event('storage')); }
     });

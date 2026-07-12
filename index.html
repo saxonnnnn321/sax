@@ -269,14 +269,13 @@
 
   // ================= STATS: steps / calories / water =================
   function waterProgress() {
-    var state = pull('health', 'po_water_v1'); if (!state) return { done: 0, total: 0 };
+    var state = pull('water', 'po_water_v1'); if (!state) return { done: 0, total: 0 };
     var done = (state.logs || {})[todayCal()] || 0;
     var p = state.profile || { weightKg: 75 };
     var wKg = state.weightUnit === 'lb' ? (p.weightKg || 0) / 2.20462 : (p.weightKg || 0);
     var totalMl = wKg * 35 + (p.activityHrsPerWeek || 0) / 7 * 500 + Math.max(0, (state.caffeineMgPerDay || 0) - 200) * 1.5 + (p.sex === 'm' ? 200 : 0) + ((p.age || 0) >= 50 ? 100 : 0);
     var unitVol = state.unit === 'glass' ? (state.glassMl || 250) : state.unit === 'oz' ? 30 : state.unit === 'ml' ? 1 : (state.bottleMl || 500);
-    var bottleMl = state.bottleMl || 500;
-    return { done: done, total: Math.max(1, Math.ceil(totalMl / unitVol)), liters: (done * bottleMl / 1000) };
+    return { done: done, total: Math.max(1, Math.ceil(totalMl / unitVol)) };
   }
   function statCard(border, label, value, sub1, sub2, barPct, barGrad, sub2col, href) {
     return '<a href="' + href + '" class="card" style="flex:1;min-width:150px;display:block;border:1px solid ' + border + ';border-radius:14px;padding:14px 16px">' +
@@ -363,10 +362,20 @@
     if (hb && hb.habits) {
       hb.habits.forEach(function (h, i) {
         var comps = (hb.comps && hb.comps[h.id]) || [];
-        var days = {}; comps.forEach(function (c) { if ((c.date || '').slice(0, 7) === mKey) days[c.date] = 1; });
+        var days = {}, firstEver = null;
+        comps.forEach(function (c) {
+          var cd = c.date || '';
+          if (cd.slice(0, 7) === mKey) days[cd] = 1;
+          if (cd && (!firstEver || cd < firstEver)) firstEver = cd;
+        });
         var cnt = Object.keys(days).length;
-        doneSum += cnt; totSum += elapsed;
-        bars.push({ label: h.name, count: cnt, total: elapsed, pct: Math.round(cnt / elapsed * 100), col: cols[i % cols.length] });
+        // Only score against days the habit has existed this month, so a habit
+        // added mid-month isn't counted as "missed" for days before it existed.
+        var startRef = (h.created && h.created.slice(0, 7) === mKey) ? h.created
+                     : (firstEver && firstEver.slice(0, 7) === mKey) ? firstEver : null;
+        var denom = Math.max(1, startRef ? (elapsed - parseInt(startRef.slice(8, 10), 10) + 1) : elapsed);
+        doneSum += cnt; totSum += denom;
+        bars.push({ label: h.name, count: cnt, total: denom, pct: Math.round(cnt / denom * 100), col: cols[i % cols.length] });
       });
     }
     var overall = totSum ? Math.round(doneSum / totSum * 100) : 0;
@@ -462,7 +471,7 @@
     var supa = getSupa();
     if (!supa) return;
     try {
-      var res = await supa.from('app_state').select('key,data').in('key', ['goals', 'health', 'finance', 'calories', 'garmin', 'habits', 'caffeine', 'po-coach']);
+      var res = await supa.from('app_state').select('key,data').in('key', ['goals', 'health', 'water', 'finance', 'calories', 'garmin', 'habits', 'caffeine', 'po-coach']);
       if (res && res.data) { res.data.forEach(function (r) { rows[r.key] = r.data; }); remoteFetched = true; renderAll(); }
     } catch (e) {}
   })();

@@ -3,3 +3,6 @@
 .vscode/
 .idea/
 *.swp
+
+# Design mockup archives (kept locally, not in the repo)
+*.zip

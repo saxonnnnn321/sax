@@ -357,7 +357,7 @@ body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-in
   function addHabit() {
     var v = document.getElementById('hbNew').value.trim(); if (!v) return;
     var id = 'h' + Date.now();
-    db.habits.push({ id: id, name: v, desc: 'A new habit you\'re building', emoji: EMOJI[db.habits.length % EMOJI.length] });
+    db.habits.push({ id: id, name: v, desc: 'A new habit you\'re building', emoji: EMOJI[db.habits.length % EMOJI.length], created: todayKey() });
     document.getElementById('hbNew').value = '';
     state.sel = id; save(); renderAll();
   }
