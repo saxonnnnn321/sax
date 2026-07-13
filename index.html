@@ -258,23 +258,56 @@
         hb.comps[hid] = comps;
         persistReminder('habits', 'habits:v1', hb);
       }
+    } else if (kind === 'workout') {
+      var wd = pull('po-coach', 'po_coach_workout_done') || {}, wt = todayCal();
+      if (wd[wt]) delete wd[wt]; else wd[wt] = new Date().toISOString();
+      persistReminder('po-coach', 'po_coach_workout_done', wd);
     }
     renderReminders();
   }
 
+  // Which training day is today, per the gym's split rotation? Returns the
+  // split name (e.g. "Push") or null on a rest day / when it isn't set up.
+  function todayWorkout() {
+    var pc = pull('po-coach', 'po_coach_v1');
+    if (!pc || !Array.isArray(pc.splitRotation) || !pc.splitRotation.length || !pc.splitAnchor || !pc.splitAnchor.date || pc.splitAnchor.index == null) return null;
+    var rot = pc.splitRotation, a = new Date(pc.splitAnchor.date), t = new Date();
+    a.setHours(0, 0, 0, 0); t.setHours(0, 0, 0, 0);
+    var diff = Math.round((t - a) / 86400000);
+    var idx = ((pc.splitAnchor.index + diff) % rot.length + rot.length) % rot.length;
+    var name = rot[idx];
+    return /^rest\b/i.test(name || '') ? null : name;
+  }
+
   function renderReminders() {
-    var items = [], ad = activeDate();
+    var items = [], ad = activeDate(), td = todayCal();
+    // Goals for today (Main)
     (pull('goals', 'goals:' + ad) || []).forEach(function (g, i) { if (g && g.text) items.push({ label: g.text, cat: 'to-do', col: '#34d399', done: !!g.done, kind: 'goal', key: 'goals:' + ad, idx: i }); });
-    (pull('goals', 'cal:events') || []).filter(function (e) { return e && e.date === todayCal(); }).forEach(function (e) { items.push({ label: e.title, cat: 'event', col: '#38bdf8', done: false, kind: 'event' }); });
+    // Workout for today (Fitness — split rotation, tickable + done-tracked)
+    var wk = todayWorkout();
+    if (wk) { var wd = pull('po-coach', 'po_coach_workout_done') || {}; items.push({ label: wk + ' day', cat: 'train', col: '#f59e0b', done: !!wd[td], kind: 'workout' }); }
+    // Supplements to take (Health)
     var stack = pull('health', 'stack:items') || [], taken = pull('health', 'stack:taken:' + ad) || {};
     stack.forEach(function (it) { if (it && it.name) items.push({ label: it.name, cat: 'take', col: '#fb7185', done: !!taken[it.id], kind: 'take', key: 'stack:taken:' + ad, id: it.id }); });
+    // Habits (Habits)
     var hb = pull('habits', 'habits:v1');
-    if (hb && hb.habits) { hb.habits.forEach(function (h) { var comps = (hb.comps && hb.comps[h.id]) || []; var doneToday = comps.some(function (c) { return c.date === todayCal(); }); items.push({ label: h.name, cat: 'habit', col: '#fb923c', done: doneToday, kind: 'habit', id: h.id }); }); }
+    if (hb && hb.habits) { hb.habits.forEach(function (h) { var comps = (hb.comps && hb.comps[h.id]) || []; var doneToday = comps.some(function (c) { return c.date === td; }); items.push({ label: h.name, cat: 'habit', col: '#fb923c', done: doneToday, kind: 'habit', id: h.id }); }); }
+    // Water still to drink (Water) — only while short of the daily goal
+    var wp = waterProgress();
+    if (wp.total && wp.done < wp.total) items.push({ label: 'Water · ' + wp.done + ' of ' + wp.total, cat: 'water', col: '#38bdf8', done: false, kind: 'info' });
+    // Calendar events today (Main)
+    (pull('goals', 'cal:events') || []).filter(function (e) { return e && e.date === td; }).forEach(function (e) { items.push({ label: e.title, cat: 'event', col: '#818cf8', done: false, kind: 'info' }); });
+    // Money moving today (Finance) — subscriptions renewing + orders arriving
+    (pull('finance', 'subs') || []).forEach(function (s) { if (s && s.renewal === td) items.push({ label: (s.name || 'Subscription') + ' renews', cat: 'bill', col: '#eab308', done: false, kind: 'info' }); });
+    (pull('finance', 'incoming_orders') || []).forEach(function (o) { if (o && o.date === td) items.push({ label: (o.name || 'Order') + ' arrives', cat: 'arriving', col: '#4ade80', done: false, kind: 'info' }); });
 
-    var doneN = items.filter(function (i) { return i.done; }).length;
-    items.sort(function (a, b) { return (a.done ? 1 : 0) - (b.done ? 1 : 0); });
+    var tickable = function (k) { return k === 'goal' || k === 'take' || k === 'habit' || k === 'workout'; };
+    var tasks = items.filter(function (i) { return tickable(i.kind); });
+    var doneN = tasks.filter(function (i) { return i.done; }).length;
+    // Order: things to do first, then today's info (events/bills), done last.
+    items.sort(function (a, b) { return (a.done ? 3 : tickable(a.kind) ? 1 : 2) - (b.done ? 3 : tickable(b.kind) ? 1 : 2); });
     var body = items.length ? items.map(function (r) {
-      var toggleable = r.kind === 'goal' || r.kind === 'take' || r.kind === 'habit';
+      var toggleable = tickable(r.kind);
       var lead = toggleable
         ? '<div style="width:17px;height:17px;border-radius:6px;flex:none;border:1.5px solid ' + (r.done ? r.col : 'rgba(255,255,255,0.28)') + ';background:' + (r.done ? r.col : 'transparent') + ';display:flex;align-items:center;justify-content:center;font:700 11px \'Inter\',sans-serif;color:#0b0f20;transition:all .12s">' + (r.done ? '✓' : '') + '</div>'
         : '<div style="width:7px;height:7px;border-radius:50%;flex:none;background:' + r.col + '"></div>';
@@ -286,13 +319,13 @@
         lead +
         '<div style="flex:1;min-width:0;font:500 13px \'Inter\',sans-serif;color:' + (r.done ? 'rgba(255,255,255,0.35)' : '#f4f4f6') + ';text-decoration:' + (r.done ? 'line-through' : 'none') + ';overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(r.label) + '</div>' +
         '<div class="mono" style="font:600 10px \'JetBrains Mono\',monospace;color:' + r.col + ';background:' + r.col + '1f;padding:3px 8px;border-radius:6px;text-transform:uppercase;letter-spacing:0.04em">' + r.cat + '</div></div>';
-    }).join('') : '<div class="mut" style="font-size:13px;padding:16px 0;text-align:center;font-style:italic">Nothing due today. Add goals on Main, events in the calendar, or supplements in Health.</div>';
+    }).join('') : '<div class="mut" style="font-size:13px;padding:16px 0;text-align:center;font-style:italic">Nothing due today. Add goals or events on Main, supplements in Health, or a workout split in Fitness.</div>';
     document.getElementById('secReminders').innerHTML =
       '<div id="anchReminders" class="card" style="padding:16px 18px;animation-delay:.05s">' +
         '<div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px;gap:10px;flex-wrap:wrap">' +
           '<div style="display:flex;align-items:baseline;gap:10px"><a href="main.html" class="ttl">Today · everything due</a>' +
-          '<div class="mono" style="font:600 10.5px \'JetBrains Mono\',monospace;color:#34d399;background:rgba(52,211,153,0.12);padding:2px 8px;border-radius:6px">' + doneN + ' of ' + items.length + ' done</div></div>' +
-          '<div class="mut" style="font:400 10.5px \'Inter\',sans-serif">calendar · to-take · habits — all in one place</div></div>' +
+          '<div class="mono" style="font:600 10.5px \'JetBrains Mono\',monospace;color:#34d399;background:rgba(52,211,153,0.12);padding:2px 8px;border-radius:6px">' + doneN + ' of ' + tasks.length + ' done</div></div>' +
+          '<div class="mut" style="font:400 10.5px \'Inter\',sans-serif">goals · workout · supplements · habits · water · money — all in one place</div></div>' +
         body + '</div>';
   }
 
@@ -525,7 +558,8 @@
   setInterval(renderDayRing, 30000); // keep the day-progress clock/percent live
   document.getElementById('secReminders').addEventListener('click', function (e) {
     var row = e.target.closest('.remrow'); if (!row) return;
-    var kind = row.getAttribute('data-kind'); if (!kind || kind === 'event') return;
+    var kind = row.getAttribute('data-kind');
+    if (['goal', 'take', 'habit', 'workout'].indexOf(kind) === -1) return; // info rows aren't tickable
     toggleReminder(row);
   });
   (async function () {
