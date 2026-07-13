@@ -109,12 +109,24 @@
     if (!c.pts.length) return '<div class="mut" style="font-size:12px;padding:20px 0;text-align:center">Not enough data yet.</div>';
     var ptData = c.pts.map(function (p, i) { return { x: +p.x.toFixed(1), y: +p.y.toFixed(1), label: (labels ? labels[i] : ('#' + (i + 1))) + ': ' + p.v + (unit || '') }; });
     var dots = c.pts.map(function (p) { return '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="2.5" fill="' + stroke + '" stroke="#0d1122" stroke-width="1"/>'; }).join('');
-    return '<div class="chartwrap"><svg width="100%" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '" data-w="' + w + '" data-h="' + h + '" data-pts=\'' + JSON.stringify(ptData) + '\' style="overflow:visible;margin-top:4px">' +
+    // x-axis: thin the date labels to ~6 evenly-spaced ticks (always incl. first
+    // & last) so each point has real context instead of just a bare line.
+    var band = (labels && labels.length) ? 18 : 0, total = h + band, axis = '';
+    if (band) {
+      var n = c.pts.length, want = Math.min(n, 6), seen = {};
+      for (var t = 0; t < want; t++) {
+        var i = Math.round(t * (n - 1) / (want - 1));
+        if (seen[i]) continue; seen[i] = 1;
+        var p = c.pts[i], anchor = i === 0 ? 'start' : (i === n - 1 ? 'end' : 'middle');
+        axis += '<text x="' + p.x.toFixed(1) + '" y="' + (h + 12) + '" fill="rgba(255,255,255,0.42)" font-family="\'JetBrains Mono\',monospace" font-size="9" text-anchor="' + anchor + '">' + esc(labels[i]) + '</text>';
+      }
+    }
+    return '<div class="chartwrap"><svg width="100%" height="' + total + '" viewBox="0 0 ' + w + ' ' + total + '" data-w="' + w + '" data-h="' + total + '" data-pts=\'' + JSON.stringify(ptData) + '\' style="overflow:visible;margin-top:4px">' +
       '<defs><linearGradient id="' + grad + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="' + stroke + '" stop-opacity="0.45"/><stop offset="100%" stop-color="' + stroke + '" stop-opacity="0"/></linearGradient></defs>' +
       '<path d="' + c.area + '" fill="url(#' + grad + ')"/>' +
       '<path d="' + c.line + '" fill="none" stroke="' + stroke + '" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>' +
       dots + '<circle class="chart-hi" r="4.5" fill="none" stroke="#fff" stroke-width="1.5" style="display:none"/>' +
-      '</svg><div class="charttip"></div></div>';
+      axis + '</svg><div class="charttip"></div></div>';
   }
 
   function attachChartHovers() {
@@ -410,11 +422,20 @@
         cells += '<div title="' + k + (days[k] ? ' · ' + days[k] + ' activity' : '') + '" style="border-radius:2px;background:' + c + ';grid-row:' + (row + 1) + ';grid-column:' + (col + 1) + '"></div>';
       }
     }
+    // Month markers under the grid, aligned to the week column each month starts in.
+    var monthRow = '', lastM = -1;
+    for (var mc = 0; mc < 53; mc++) {
+      var dmc = new Date(start); dmc.setDate(start.getDate() + mc * 7);
+      if (dmc.getFullYear() !== year) continue;
+      var mm = dmc.getMonth();
+      if (mm !== lastM) { lastM = mm; monthRow += '<div style="grid-column:' + (mc + 1) + ';white-space:nowrap;overflow:visible;font:500 9.5px \'Inter\',sans-serif;color:rgba(255,255,255,0.4)">' + MONS[mm] + '</div>'; }
+    }
     document.getElementById('secWorkouts').innerHTML =
       '<div id="anchWorkouts" class="card" style="border:1px solid rgba(245,158,11,0.18);animation-delay:.43s">' +
         '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px"><a href="gym.html" class="ttl">Workouts this year</a><div class="mut" style="font:400 10.5px \'Inter\',sans-serif">' + count + ' sessions logged</div></div>' +
         '<div style="display:grid;grid-template-columns:repeat(53,1fr);grid-template-rows:repeat(7,1fr);gap:3px;height:98px">' + cells + '</div>' +
-        '<div style="display:flex;justify-content:flex-end;align-items:center;gap:4px;margin-top:10px"><span class="mut" style="font:400 10px \'Inter\',sans-serif;margin-right:2px">Less</span>' +
+        '<div style="display:grid;grid-template-columns:repeat(53,minmax(0,1fr));gap:3px;margin-top:6px">' + monthRow + '</div>' +
+        '<div style="display:flex;justify-content:flex-end;align-items:center;gap:4px;margin-top:4px"><span class="mut" style="font:400 10px \'Inter\',sans-serif;margin-right:2px">Less</span>' +
         '<div style="width:9px;height:9px;border-radius:2px;background:rgba(255,255,255,0.05)"></div><div style="width:9px;height:9px;border-radius:2px;background:#22c55e"></div><div style="width:9px;height:9px;border-radius:2px;background:#4ade80"></div>' +
         '<span class="mut" style="font:400 10px \'Inter\',sans-serif;margin-left:2px">More</span></div></div>';
   }
