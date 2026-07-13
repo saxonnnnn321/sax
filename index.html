@@ -64,6 +64,7 @@
         <div class="rangebtn" data-n="30">30D</div>
       </div>
     </div>
+    <div id="secDayRing"></div>
     <div id="secReminders"></div>
     <div id="secSleep"></div>
     <div id="secStats"></div>
@@ -183,6 +184,44 @@
     document.getElementById('greet').textContent = (h < 12 ? 'Good morning, ' : h < 18 ? 'Good afternoon, ' : 'Good evening, ') + 'Saxon';
     var d = new Date();
     document.getElementById('todayLabel').textContent = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) + ' · ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+
+  // ================= DAY PROGRESS (compact version of Main's ring) =================
+  function fmtRemain(mins) { mins = Math.max(0, Math.round(mins)); var h = Math.floor(mins / 60), m = mins % 60; return h > 0 ? (h + 'h ' + m + 'm') : (m + 'm'); }
+  function fmtClock(d) { var h = d.getHours(), ap = h < 12 ? 'AM' : 'PM', h12 = h % 12 || 12; return h12 + ':' + pad(d.getMinutes()) + ' ' + ap; }
+  function renderDayRing() {
+    var WAKE = 5, SLEEP = 21, now = new Date();
+    var hrs = now.getHours() + now.getMinutes() / 60 + now.getSeconds() / 3600;
+    var r = 26, circ = 2 * Math.PI * r;
+    var pct, col, big, phase, status, remaining;
+    if (hrs < WAKE) {
+      pct = 0; col = 'rgba(255,255,255,0.25)'; big = '—'; phase = 'SLEEPING'; status = '😴 Still sleeping';
+      remaining = fmtRemain((WAKE - hrs) * 60) + ' until wake-up';
+    } else if (hrs >= SLEEP) {
+      pct = 100; col = '#fb7185'; big = '100%'; phase = 'PAST BEDTIME'; status = '⚠️ Past bedtime'; remaining = 'Sleep!';
+    } else {
+      pct = (hrs - WAKE) / (SLEEP - WAKE) * 100; big = Math.floor(pct) + '%';
+      col = pct < 50 ? '#34d399' : pct < 80 ? '#facc15' : '#fb7185';
+      if (pct < 25) { phase = 'MORNING'; status = '☀️ Morning — fresh start'; }
+      else if (pct < 50) { phase = 'MIDDAY'; status = '⚡ Midday — keep moving'; }
+      else if (pct < 75) { phase = 'AFTERNOON'; status = '🔥 Afternoon — push it'; }
+      else if (pct < 90) { phase = 'EVENING'; status = '⏳ Evening — wrap up'; }
+      else { phase = 'BEDTIME'; status = '🌙 Bedtime soon'; }
+      remaining = fmtRemain((SLEEP - hrs) * 60) + ' awake left';
+    }
+    var off = circ * (1 - pct / 100);
+    var svg = '<svg width="60" height="60" viewBox="0 0 62 62" style="flex:none">' +
+      '<circle cx="31" cy="31" r="' + r + '" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="6"/>' +
+      '<circle cx="31" cy="31" r="' + r + '" fill="none" stroke="' + col + '" stroke-width="6" stroke-linecap="round" stroke-dasharray="' + circ.toFixed(1) + '" stroke-dashoffset="' + off.toFixed(1) + '" transform="rotate(-90 31 31)"/>' +
+      '<text x="31" y="36" text-anchor="middle" font-family="\'JetBrains Mono\',monospace" font-size="13" font-weight="700" fill="#f4f4f6">' + big + '</text></svg>';
+    document.getElementById('secDayRing').innerHTML =
+      '<a href="main.html" class="card" style="display:flex;align-items:center;gap:14px;padding:13px 16px;border:1px solid rgba(226,93,122,0.18)">' +
+        svg +
+        '<div style="min-width:0;flex:1">' +
+          '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><span style="font:700 13.5px \'Inter\',sans-serif;color:#f4f4f6">' + status + '</span>' +
+          '<span class="mono" style="font:600 9.5px \'JetBrains Mono\',monospace;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:0.05em">' + phase + '</span></div>' +
+          '<div class="mut" style="font:400 11.5px \'Inter\',sans-serif;margin-top:3px">' + remaining + ' · <span class="mono">' + fmtClock(now) + '</span> · awake 5:00 AM–9:00 PM</div>' +
+        '</div></a>';
   }
 
   // ================= REMINDERS (pull from all sections) =================
@@ -472,7 +511,7 @@
         svgLine('run', vals, labels, 560, 190, '#fb923c', 'gradRun', ' km') + '</div>';
   }
 
-  function renderAll() { renderHeader(); renderReminders(); renderSleep(); renderStats(); renderFinance(); renderHabits(); renderWorkouts(); renderCaffeine(); renderRunning(); attachChartHovers(); }
+  function renderAll() { renderHeader(); renderDayRing(); renderReminders(); renderSleep(); renderStats(); renderFinance(); renderHabits(); renderWorkouts(); renderCaffeine(); renderRunning(); attachChartHovers(); }
 
   document.getElementById('rangePills').addEventListener('click', function (e) {
     var b = e.target.closest('.rangebtn'); if (!b) return;
@@ -483,6 +522,7 @@
 
   renderSide();
   renderAll();
+  setInterval(renderDayRing, 30000); // keep the day-progress clock/percent live
   document.getElementById('secReminders').addEventListener('click', function (e) {
     var row = e.target.closest('.remrow'); if (!row) return;
     var kind = row.getAttribute('data-kind'); if (!kind || kind === 'event') return;
