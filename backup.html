@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Backup &amp; Restore · Saxons Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: linear-gradient(160deg, #070812, #0b0f20 55%, #0a0d1c);
+    color: #f4f4f6; min-height: 100vh; padding: 28px 18px 80px; -webkit-font-smoothing: antialiased;
+  }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace; }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  a.back { display: inline-flex; align-items: center; gap: 6px; color: rgba(255,255,255,0.5); text-decoration: none; font-size: 13px; margin-bottom: 20px; }
+  a.back:hover { color: #f4f4f6; }
+  h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.3px; }
+  .sub { color: rgba(255,255,255,0.45); font-size: 13px; margin-top: 4px; line-height: 1.5; }
+  .card {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px; padding: 20px; margin-top: 18px; backdrop-filter: blur(16px);
+  }
+  .card h2 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .card p.note { font-size: 12.5px; color: rgba(255,255,255,0.5); line-height: 1.55; margin-bottom: 14px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    border: 0; border-radius: 11px; padding: 12px 20px; font: 600 14px 'Inter', sans-serif;
+    cursor: pointer; color: #0b0f20; transition: transform .08s, filter .12s;
+  }
+  .btn:active { transform: translateY(1px); }
+  .btn.primary { background: linear-gradient(90deg, #34d399, #38bdf8); }
+  .btn.primary:hover { filter: brightness(1.08); }
+  .btn.warn { background: linear-gradient(90deg, #fbbf24, #fb923c); }
+  .btn.warn:hover { filter: brightness(1.08); }
+  .btn:disabled { opacity: 0.5; cursor: default; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 2px; border-top: 1px solid rgba(255,255,255,0.06); }
+  .row:first-child { border-top: 0; }
+  .row .k { font: 500 13px 'Inter', sans-serif; }
+  .row .meta { font: 500 11px 'JetBrains Mono', monospace; color: rgba(255,255,255,0.45); text-align: right; }
+  .total { display: flex; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); font: 600 13px 'JetBrains Mono', monospace; }
+  .file-label {
+    display: inline-flex; align-items: center; gap: 8px; border: 1px dashed rgba(255,255,255,0.25);
+    border-radius: 11px; padding: 11px 16px; font: 500 13px 'Inter', sans-serif; color: rgba(255,255,255,0.8);
+    cursor: pointer; margin-right: 10px;
+  }
+  .file-label:hover { border-color: rgba(255,255,255,0.5); color: #f4f4f6; }
+  input[type=file] { display: none; }
+  #status { margin-top: 14px; font: 500 12.5px 'JetBrains Mono', monospace; line-height: 1.6; white-space: pre-wrap; }
+  .ok { color: #34d399; } .err { color: #fb7185; } .muted { color: rgba(255,255,255,0.5); }
+  .pill { display: inline-block; font: 600 10px 'JetBrains Mono', monospace; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 6px; background: rgba(148,163,184,0.15); color: #cbd5e1; margin-left: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="index.html">← Back to Overview</a>
+  <h1>💾 Backup &amp; Restore</h1>
+  <div class="sub">Your data lives in the cloud, separate from the app's code — so changing how the dashboard looks or works never touches it. This page lets you save a full copy to a file and restore it later. <b>Export a backup before any big change</b>, and you can always roll back.</div>
+
+  <div class="card">
+    <h2>Your data <span class="pill" id="liveState">loading…</span></h2>
+    <p class="note">Everything currently stored in the cloud, across all your devices.</p>
+    <div id="rowList"></div>
+    <div class="total"><span>Total</span><span id="totalSize">—</span></div>
+  </div>
+
+  <div class="card">
+    <h2>Save a backup</h2>
+    <p class="note">Downloads a single <span class="mono">.json</span> file with a complete copy of everything above. Keep it somewhere safe (it's small). Do this whenever you're about to change a lot.</p>
+    <button class="btn primary" id="exportBtn" disabled>⬇ Download backup</button>
+  </div>
+
+  <div class="card">
+    <h2>Restore from a backup</h2>
+    <p class="note">Loads a backup file and writes it back to the cloud, replacing the matching data. Anything not in the file is left alone (it won't wipe newer sections). Reload your pages afterwards to see it.</p>
+    <label class="file-label" for="fileInput">📂 Choose backup file…</label>
+    <input type="file" id="fileInput" accept="application/json,.json">
+    <button class="btn warn" id="restoreBtn" disabled>♻ Restore this file</button>
+    <div id="fileName" class="note" style="margin-top:10px;margin-bottom:0"></div>
+  </div>
+
+  <div id="status"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var URL = 'https://qolajqziujbfsiguaozo.supabase.co';
+  var KEY = 'sb_publishable_MJLciRMTTp9K7Qyb_HojdQ_5pqgnX7l';
+  var supa = null, rows = [], pendingFile = null;
+
+  var statusEl = document.getElementById('status');
+  function status(msg, cls) { statusEl.innerHTML = '<span class="' + (cls || 'muted') + '">' + msg + '</span>'; }
+  function bytes(n) { return n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(2) + ' MB'; }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+
+  // Friendly names for the raw row keys.
+  var NAMES = { goals: 'Goals & calendar', health: 'Supplements', water: 'Water', finance: 'Finance', calories: 'Calories', caffeine: 'Caffeine', habits: 'Habits', 'po-coach': 'Workouts & photos', garmin: 'Garmin (steps/sleep/runs)' };
+
+  function fmtWhen(s) {
+    if (!s) return '';
+    try { var d = new Date(s); return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; }
+  }
+
+  function renderRows() {
+    var listEl = document.getElementById('rowList');
+    if (!rows.length) { listEl.innerHTML = '<div class="note" style="margin:0">No data found yet — start logging and it\'ll show up here.</div>'; document.getElementById('totalSize').textContent = '0 B'; return; }
+    var total = 0;
+    listEl.innerHTML = rows.map(function (r) {
+      var size = JSON.stringify(r.data || {}).length; total += size;
+      return '<div class="row"><div class="k">' + esc(NAMES[r.key] || r.key) + ' <span class="muted mono" style="font-size:11px">' + esc(r.key) + '</span></div>' +
+        '<div class="meta">' + bytes(size) + (r.updated_at ? '<br>' + esc(fmtWhen(r.updated_at)) : '') + '</div></div>';
+    }).join('');
+    document.getElementById('totalSize').textContent = bytes(total);
+  }
+
+  function load() {
+    if (!window.supabase) { document.getElementById('liveState').textContent = 'no connection'; status('Could not load the Supabase library. Check your connection and refresh.', 'err'); return; }
+    supa = window.supabase.createClient(URL, KEY);
+    document.getElementById('liveState').textContent = 'reading…';
+    supa.from('app_state').select('key,data,updated_at').then(function (res) {
+      if (res.error) { document.getElementById('liveState').textContent = 'error'; status('Could not read your data: ' + res.error.message, 'err'); return; }
+      rows = (res.data || []).sort(function (a, b) { return a.key < b.key ? -1 : 1; });
+      document.getElementById('liveState').textContent = rows.length + ' section' + (rows.length === 1 ? '' : 's');
+      document.getElementById('exportBtn').disabled = rows.length === 0;
+      renderRows();
+    }, function (e) { document.getElementById('liveState').textContent = 'error'; status('Could not read your data: ' + e.message, 'err'); });
+  }
+
+  // ---------- EXPORT ----------
+  document.getElementById('exportBtn').addEventListener('click', function () {
+    var map = {}; rows.forEach(function (r) { map[r.key] = r.data; });
+    var payload = { app: 'saxons-dashboard', version: 1, exportedAt: new Date().toISOString(), rows: map };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    var url = window.URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var stamp = new Date().toISOString().slice(0, 10);
+    a.href = url; a.download = 'saxons-dashboard-backup-' + stamp + '.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { window.URL.revokeObjectURL(url); }, 1000);
+    status('✓ Backup downloaded (' + rows.length + ' sections). Keep this file safe.', 'ok');
+  });
+
+  // ---------- RESTORE ----------
+  document.getElementById('fileInput').addEventListener('change', function (e) {
+    var f = e.target.files && e.target.files[0];
+    pendingFile = f || null;
+    document.getElementById('restoreBtn').disabled = !f;
+    document.getElementById('fileName').textContent = f ? ('Selected: ' + f.name) : '';
+  });
+
+  document.getElementById('restoreBtn').addEventListener('click', function () {
+    if (!pendingFile || !supa) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      var parsed;
+      try { parsed = JSON.parse(reader.result); } catch (err) { status('That file isn\'t valid JSON — pick a backup file exported from here.', 'err'); return; }
+      var map = parsed && parsed.rows && typeof parsed.rows === 'object' ? parsed.rows
+              : (parsed && typeof parsed === 'object' && !parsed.rows ? parsed : null);
+      if (!map || !Object.keys(map).length) { status('No data found in that file.', 'err'); return; }
+      var keys = Object.keys(map);
+      var when = parsed && parsed.exportedAt ? (' from ' + fmtWhen(parsed.exportedAt)) : '';
+      if (!window.confirm('Restore ' + keys.length + ' section(s)' + when + '?\n\nThis replaces the matching data in the cloud with the file\'s version. Sections not in the file are left untouched.')) return;
+
+      document.getElementById('restoreBtn').disabled = true;
+      status('Restoring ' + keys.length + ' section(s)…', 'muted');
+      var done = 0, failed = [];
+      keys.forEach(function (k) {
+        supa.from('app_state').upsert({ key: k, data: map[k], updated_at: new Date().toISOString() }, { onConflict: 'key' }).then(function (res) {
+          done++;
+          if (res && res.error) failed.push(k + ' (' + res.error.message + ')');
+          if (done === keys.length) finishRestore(keys.length, failed);
+        }, function (err) { done++; failed.push(k + ' (' + err.message + ')'); if (done === keys.length) finishRestore(keys.length, failed); });
+      });
+    };
+    reader.readAsText(pendingFile);
+  });
+
+  function finishRestore(n, failed) {
+    document.getElementById('restoreBtn').disabled = false;
+    if (failed.length) {
+      status('Restored ' + (n - failed.length) + ' of ' + n + ' sections. Failed:\n' + failed.map(function (f) { return '  • ' + esc(f); }).join('\n'), 'err');
+    } else {
+      status('✓ Restored all ' + n + ' sections to the cloud.\nReload your dashboard pages (or reopen them) to see the restored data.', 'ok');
+    }
+    load();
+  }
+
+  load();
+})();
+</script>
+</body>
+</html>
